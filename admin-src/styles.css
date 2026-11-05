@@ -1,0 +1,170 @@
+/*
+ * Settings panel styles. Tailwind v4 without preflight (wp-admin keeps its own base); utilities
+ * are !important so they win over wp-admin's unlayered form styles. A small reset is scoped to #ctc-app.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) important;
+@source "./";
+
+@custom-variant dark (&:where(.ctc-dark, .ctc-dark *));
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--foreground);
+	--color-border: var(--border);
+	--color-ring: var(--ring);
+	--color-primary: var(--primary);
+	--color-primary-foreground: #fff;
+	--color-secondary: var(--muted);
+	--color-secondary-foreground: var(--foreground);
+	--font-estedad: "CTC Vazirmatn";
+}
+
+#ctc-app {
+	--background: #f6f7fb;
+	--foreground: #0f172a;
+	--card: #ffffff;
+	--muted: #f1f3f8;
+	--muted-foreground: #64748b;
+	--accent: #eef0f7;
+	--border: #e5e7ef;
+	--ring: color-mix(in srgb, var(--primary) 55%, transparent);
+	--primary: #4f46e5;
+	--font-estedad: "CTC Vazirmatn";
+	font-family: "CTC Vazirmatn", Tahoma, sans-serif;
+	color: var(--foreground);
+	direction: rtl;
+	font-size: 14px;
+	line-height: 1.7;
+	-webkit-font-smoothing: antialiased;
+}
+
+#ctc-app.ctc-dark {
+	--background: #0b0e17;
+	--foreground: #eef1f8;
+	--card: #121726;
+	--muted: #1a2033;
+	--muted-foreground: #98a2b8;
+	--accent: #1c2236;
+	--border: #242b40;
+}
+
+#ctc-app *,
+#ctc-app *::before,
+#ctc-app *::after {
+	box-sizing: border-box;
+	border-width: 0;
+	border-style: solid;
+	border-color: var(--border);
+}
+
+#ctc-app h1,
+#ctc-app h2,
+#ctc-app h3,
+#ctc-app h4,
+#ctc-app p,
+#ctc-app ul,
+#ctc-app ol {
+	margin: 0;
+	padding: 0;
+	color: inherit;
+	font: inherit;
+}
+
+#ctc-app ul,
+#ctc-app ol {
+	list-style: none;
+}
+
+#ctc-app button {
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+#ctc-app input,
+#ctc-app textarea,
+#ctc-app select {
+	margin: 0;
+	font: inherit;
+	color: var(--foreground);
+	background: var(--card);
+	box-shadow: none;
+	min-height: 0;
+	line-height: 1.6;
+}
+
+#ctc-app input:focus,
+#ctc-app textarea:focus {
+	outline: none;
+	box-shadow: none;
+}
+
+#ctc-app a {
+	color: inherit;
+	text-decoration: none;
+}
+
+#ctc-app a:focus {
+	box-shadow: none;
+}
+
+/* Icons are blocks inside their (flex) holders, so they sit exactly in the centre — no baseline gap. */
+#ctc-app svg {
+	display: block;
+	flex: none;
+}
+
+/* Bank card plates reuse the payment page CSS (.ctc scope). */
+#ctc-app .ctc {
+	font-family: "CTC Vazirmatn", Tahoma, sans-serif;
+}
+
+#ctc-app .ctc-plate {
+	animation: none;
+}
+
+.ctc-wrap {
+	margin: 0 0 0 20px;
+}
+
+body.rtl .ctc-wrap {
+	margin: 0 0 0 20px;
+}
+
+#wpcontent:has(#ctc-app) {
+	background: #f6f7fb;
+}
+
+#wpcontent:has(#ctc-app.ctc-dark) {
+	background: #0b0e17;
+}
+
+#wpbody-content:has(#ctc-app) > .notice,
+#wpbody-content:has(#ctc-app) > .updated,
+#wpbody-content:has(#ctc-app) > .error {
+	margin: 16px 0 0 20px;
+}
+
+.ctc-boot {
+	padding: 80px 0;
+	color: #64748b;
+	text-align: center;
+}
+
+@media (max-width: 782px) {
+	.ctc-wrap,
+	body.rtl .ctc-wrap {
+		margin: 0 10px;
+	}
+}

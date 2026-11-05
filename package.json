@@ -1,0 +1,41 @@
+{
+  "name": "card-to-card-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Card to card payment gateway for WooCommerce — build tooling and tests.",
+  "license": "GPL-2.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:admin && npm run build:assets",
+    "build:admin": "vite build --config admin-src/vite.config.ts",
+    "dev:admin": "vite build --watch --config admin-src/vite.config.ts",
+    "build:assets": "node bin/build-assets.mjs",
+    "logos": "node bin/build-logos.mjs",
+    "env": "bash bin/dev.sh up",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "zip": "bash bin/zip.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/vite": "^4.3.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.2.1",
+    "clean-css": "^5.3.3",
+    "svgo": "^4.1.0",
+    "tailwindcss": "^4.3.4",
+    "terser": "^5.51.2",
+    "typescript": "^7.0.2",
+    "vazirmatn": "^33.0.3",
+    "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "@hugeicons/core-free-icons": "^4.4.0",
+    "@hugeicons/react": "^1.1.10",
+    "clsx": "^2.1.1",
+    "motion": "^14.9.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.7.0"
+  }
+}

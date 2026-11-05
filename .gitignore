@@ -1,0 +1,7 @@
+node_modules/
+vendor/
+dist/
+dev/gallery.html
+.DS_Store
+.phpunit.result.cache
+test-results/
