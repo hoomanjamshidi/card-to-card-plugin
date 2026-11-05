@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<ruleset name="Card to Card">
+	<description>WordPress Coding Standards for the card-to-card plugin.</description>
+	<file>.</file>
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/admin-src/*</exclude-pattern>
+	<exclude-pattern>/assets/*</exclude-pattern>
+	<exclude-pattern>/tests/*</exclude-pattern>
+	<exclude-pattern>/dist/*</exclude-pattern>
+	<exclude-pattern>/dev/*</exclude-pattern>
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+	<arg name="colors"/>
+	<config name="testVersion" value="8.0-"/>
+	<config name="minimum_wp_version" value="6.4"/>
+	<rule ref="WordPress">
+		<!-- PSR-4 file names (includes/Sms/Sender.php) instead of class-*.php. -->
+		<exclude name="WordPress.Files.FileName"/>
+	</rule>
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="manage_woocommerce"/>
+				<element value="edit_shop_orders"/>
+			</property>
+		</properties>
+	</rule>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array"><element value="card-to-card"/></property>
+		</properties>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="ctc_"/>
+				<element value="CardToCard"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

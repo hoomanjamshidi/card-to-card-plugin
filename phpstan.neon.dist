@@ -1,0 +1,17 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+parameters:
+	level: 6
+	paths:
+		- card-to-card.php
+		- includes
+		- templates
+	scanFiles:
+		- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+	bootstrapFiles:
+		- tests/phpstan-bootstrap.php
+	treatPhpDocTypesAsCertain: false
+	ignoreErrors:
+		# WooCommerce's own pattern: process_admin_options() returns bool on an action.
+		- message: '#Action callback returns bool but should not return anything#'
+		  path: includes/Gateway.php

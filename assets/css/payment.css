@@ -1,0 +1,1632 @@
+/**
+ * Card to card — payment page, thank-you box and the bank card plate.
+ * Everything is scoped under .ctc and resets what themes usually style (buttons, inputs, lists,
+ * headings), so the page looks the same on any theme. Light / dark via [data-scheme].
+ */
+
+.ctc {
+	--ctc-font: inherit;
+	--ctc-accent: #4f46e5;
+	--ctc-bg: transparent;
+	--ctc-surface: #ffffff;
+	--ctc-soft: #f4f5fa;
+	--ctc-ink: #0f172a;
+	--ctc-muted: #64748b;
+	--ctc-line: #e5e7ef;
+	--ctc-ok: #16a34a;
+	--ctc-ok-bg: #e8f7ee;
+	--ctc-warn: #b45309;
+	--ctc-warn-bg: #fff4e0;
+	--ctc-bad: #dc2626;
+	--ctc-bad-bg: #fdecec;
+	--ctc-r-lg: 22px;
+	--ctc-r-md: 14px;
+	--ctc-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 12px 32px -18px rgba(15, 23, 42, .25);
+	box-sizing: border-box;
+	direction: rtl;
+	color: var(--ctc-ink);
+	font-family: var(--ctc-font);
+	font-size: 15px;
+	line-height: 1.75;
+	text-align: right;
+	-webkit-font-smoothing: antialiased;
+}
+
+.ctc[data-scheme="dark"] {
+	--ctc-surface: #141826;
+	--ctc-soft: #1b2133;
+	--ctc-ink: #eef1f8;
+	--ctc-muted: #9aa4bb;
+	--ctc-line: #262d42;
+	--ctc-ok-bg: rgba(22, 163, 74, .14);
+	--ctc-warn-bg: rgba(217, 119, 6, .15);
+	--ctc-bad-bg: rgba(220, 38, 38, .14);
+	--ctc-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 18px 40px -20px rgba(0, 0, 0, .7);
+}
+
+@media (prefers-color-scheme: dark) {
+	.ctc[data-scheme="auto"] {
+		--ctc-surface: #141826;
+		--ctc-soft: #1b2133;
+		--ctc-ink: #eef1f8;
+		--ctc-muted: #9aa4bb;
+		--ctc-line: #262d42;
+		--ctc-ok-bg: rgba(22, 163, 74, .14);
+		--ctc-warn-bg: rgba(217, 119, 6, .15);
+		--ctc-bad-bg: rgba(220, 38, 38, .14);
+		--ctc-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 18px 40px -20px rgba(0, 0, 0, .7);
+	}
+}
+
+/*
+ * Resets are one class strong (.ctc + :where): stronger than a theme's bare element rules
+ * (p, ol, h1 …), and declared before the components, so every .ctc-* rule below still wins.
+ */
+:where(.ctc) *,
+:where(.ctc) *::before,
+:where(.ctc) *::after {
+	box-sizing: border-box;
+}
+
+.ctc :where(h1, h2, p, ol, ul, dl, dd, li) {
+	margin: 0;
+	padding: 0;
+	font-family: inherit;
+	letter-spacing: normal;
+	text-transform: none;
+}
+
+.ctc :where(ol, ul, li) {
+	list-style: none;
+}
+
+.ctc :where(button, input, select, textarea) {
+	font-family: inherit;
+	letter-spacing: normal;
+	text-transform: none;
+}
+
+.ctc .ctc-ic {
+	flex: none;
+	width: 20px;
+	height: 20px;
+}
+
+/* ---------- Shell (payment page container) ---------- */
+.ctc-shell {
+	display: block;
+	width: 100%;
+	max-width: 1180px;
+	margin: 0 auto;
+	padding: 28px 16px 64px;
+}
+
+.ctc-standalone {
+	margin: 0;
+	background: #f2f3f8;
+}
+
+.ctc-topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	max-width: 1180px;
+	margin: 0 auto;
+	padding: 18px 16px 0;
+	direction: rtl;
+	font-family: "CTC Vazirmatn", Tahoma, sans-serif;
+}
+
+.ctc-brand {
+	display: inline-flex;
+	align-items: center;
+	color: #0f172a;
+	font-size: 18px;
+	font-weight: 800;
+	text-decoration: none;
+}
+
+.ctc-brand img {
+	width: auto;
+	max-height: 44px;
+}
+
+.ctc-secure {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: #16a34a;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.ctc-secure .ctc-ic {
+	width: 18px;
+	height: 18px;
+}
+
+/* ---------- Steps ---------- */
+.ctc-steps-bar {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+	margin-bottom: 18px;
+	counter-reset: s;
+}
+
+.ctc-steps-bar li {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px;
+	border-radius: 999px;
+	background: var(--ctc-surface);
+	box-shadow: inset 0 0 0 1px var(--ctc-line);
+	color: var(--ctc-muted);
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ctc-steps-bar li span {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--ctc-soft);
+	font-size: 12px;
+	font-weight: 800;
+}
+
+.ctc-steps-bar .is-done {
+	color: var(--ctc-ok);
+}
+
+.ctc-steps-bar .is-done span {
+	background: var(--ctc-ok);
+	color: #fff;
+}
+
+.ctc-steps-bar .is-now {
+	color: var(--ctc-ink);
+	box-shadow: inset 0 0 0 1.5px var(--ctc-accent);
+}
+
+.ctc-steps-bar .is-now span {
+	background: var(--ctc-accent);
+	color: #fff;
+}
+
+/* ---------- Hero ---------- */
+.ctc-hero {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 18px;
+	margin-bottom: 18px;
+	padding: 22px 24px;
+	border-radius: var(--ctc-r-lg);
+	background:
+		radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--ctc-accent) 14%, transparent), transparent 60%),
+		var(--ctc-surface);
+	box-shadow: var(--ctc-shadow), inset 0 0 0 1px var(--ctc-line);
+	overflow: hidden;
+}
+
+.ctc-hero-ic {
+	display: grid;
+	place-items: center;
+	width: 60px;
+	height: 60px;
+	border-radius: 20px;
+	background: linear-gradient(140deg, var(--ctc-accent), color-mix(in srgb, var(--ctc-accent) 60%, #000));
+	color: #fff;
+	box-shadow: 0 12px 24px -12px var(--ctc-accent);
+}
+
+.ctc-hero-ic .ctc-ic {
+	width: 28px;
+	height: 28px;
+}
+
+.is-paid .ctc-hero-ic {
+	background: linear-gradient(140deg, #22c55e, #15803d);
+	box-shadow: 0 12px 24px -12px #16a34a;
+}
+
+.is-cancelled .ctc-hero-ic {
+	background: linear-gradient(140deg, #f87171, #b91c1c);
+	box-shadow: 0 12px 24px -12px #dc2626;
+}
+
+.is-review .ctc-hero-ic {
+	background: linear-gradient(140deg, #f59e0b, #b45309);
+	box-shadow: 0 12px 24px -12px #d97706;
+}
+
+.ctc-kicker {
+	color: var(--ctc-accent);
+	font-size: 13px;
+	font-weight: 800;
+}
+
+.is-paid .ctc-kicker {
+	color: var(--ctc-ok);
+}
+
+.is-cancelled .ctc-kicker {
+	color: var(--ctc-bad);
+}
+
+.is-review .ctc-kicker {
+	color: var(--ctc-warn);
+}
+
+.ctc .ctc-hero h1 {
+	margin: 2px 0 4px;
+	color: var(--ctc-ink);
+	font-size: clamp(20px, 2.6vw, 26px);
+	font-weight: 900;
+	line-height: 1.5;
+}
+
+.ctc-lead {
+	max-width: 720px;
+	color: var(--ctc-muted);
+	font-size: 14.5px;
+}
+
+.ctc-code {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 10px 16px;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-soft);
+	font-size: 12px;
+	color: var(--ctc-muted);
+}
+
+.ctc-code b {
+	color: var(--ctc-ink);
+	font-size: 18px;
+	font-weight: 900;
+}
+
+/* ---------- Alert ---------- */
+.ctc-alert {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	margin-bottom: 18px;
+	padding: 14px 18px;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-warn-bg);
+	color: var(--ctc-ink);
+}
+
+.ctc-alert .ctc-ic {
+	color: var(--ctc-warn);
+}
+
+.ctc-alert p {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 14px;
+}
+
+.ctc-alert span {
+	color: var(--ctc-muted);
+}
+
+/* ---------- Grid & panels ---------- */
+.ctc-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 340px;
+	gap: 22px;
+	align-items: start;
+}
+
+.ctc-grid.is-solo {
+	grid-template-columns: minmax(0, 560px);
+	justify-content: center;
+}
+
+.ctc-main,
+.ctc-side {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	min-width: 0;
+}
+
+.ctc-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	padding: 22px;
+	border-radius: var(--ctc-r-lg);
+	background: var(--ctc-surface);
+	box-shadow: var(--ctc-shadow), inset 0 0 0 1px var(--ctc-line);
+}
+
+.ctc-panel-h {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.ctc .ctc-panel h2 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--ctc-ink);
+	font-size: 16px;
+	font-weight: 800;
+	line-height: 1.6;
+}
+
+.ctc-panel h2 .ctc-ic {
+	color: var(--ctc-accent);
+}
+
+/* Card switcher (several cards). */
+.ctc-switch {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 4px;
+	border-radius: 999px;
+	background: var(--ctc-soft);
+}
+
+.ctc .ctc-switch button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	padding: 6px 12px;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--ctc-muted);
+	font-size: 13px;
+	font-weight: 700;
+	line-height: 1.6;
+	cursor: pointer;
+	box-shadow: none;
+	transition: background .2s, color .2s;
+}
+
+.ctc-switch button i {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: linear-gradient(135deg, var(--c1), var(--c2));
+}
+
+.ctc .ctc-switch button[aria-selected="true"] {
+	background: var(--ctc-surface);
+	color: var(--ctc-ink);
+	box-shadow: 0 2px 8px -3px rgba(15, 23, 42, .25);
+}
+
+.ctc-cardrow {
+	display: grid;
+	grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+	gap: 22px;
+	align-items: center;
+}
+
+.ctc-cardrow[hidden] {
+	display: none;
+}
+
+/* ---------- Bank card plate ---------- */
+.ctc-plate {
+	--c1: #1f2433;
+	--c2: #363d52;
+	--c3: #11141d;
+	--ink: #fff;
+	--foil: #d9dde8;
+	--mx: 70%;
+	--my: 20%;
+	--rx: 0deg;
+	--ry: 0deg;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	width: 100%;
+	max-width: 400px;
+	margin-inline: auto;
+	aspect-ratio: 1.586;
+	padding: 20px 22px;
+	border-radius: 20px;
+	background:
+		radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .26), transparent 52%),
+		radial-gradient(90% 80% at 0% 100%, rgba(0, 0, 0, .28), transparent 60%),
+		linear-gradient(135deg, var(--c1) 0%, var(--c2) 52%, var(--c3) 100%);
+	color: var(--ink);
+	box-shadow:
+		0 24px 40px -22px color-mix(in srgb, var(--c1) 80%, #000),
+		0 2px 6px rgba(0, 0, 0, .12),
+		inset 0 0 0 1px rgba(255, 255, 255, .16),
+		inset 0 1px 0 rgba(255, 255, 255, .28);
+	overflow: hidden;
+	isolation: isolate;
+	container-type: inline-size;
+	transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+	transform-style: preserve-3d;
+	transition: transform .5s cubic-bezier(.2, .8, .2, 1), box-shadow .3s;
+	animation: ctc-plate-in .8s cubic-bezier(.2, .8, .2, 1) both;
+	user-select: none;
+}
+
+.ctc-plate.is-tilting {
+	transition: transform .08s linear;
+}
+
+/* Guilloche rosette + wave lines, as on printed bank cards. */
+.ctc-plate-pattern {
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	opacity: .5;
+	background:
+		repeating-radial-gradient(circle at 12% 120%, transparent 0 14px, rgba(255, 255, 255, .07) 14px 15px),
+		repeating-radial-gradient(circle at 105% -10%, transparent 0 18px, rgba(255, 255, 255, .06) 18px 19px),
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='252' viewBox='0 0 400 252' fill='none' stroke='white' stroke-opacity='.10' stroke-width='1'%3E%3Cpath d='M-10 170 C 60 120 120 220 200 170 S 340 120 410 170'/%3E%3Cpath d='M-10 182 C 60 132 120 232 200 182 S 340 132 410 182'/%3E%3Cpath d='M-10 194 C 60 144 120 244 200 194 S 340 144 410 194'/%3E%3Cpath d='M-10 206 C 60 156 120 256 200 206 S 340 156 410 206'/%3E%3C/svg%3E") center / cover no-repeat;
+	mix-blend-mode: overlay;
+}
+
+.ctc-plate::before {
+	content: "";
+	position: absolute;
+	inset: -40% -10% auto auto;
+	z-index: -1;
+	width: 70%;
+	aspect-ratio: 1;
+	border-radius: 50%;
+	background: radial-gradient(circle, color-mix(in srgb, var(--foil) 40%, transparent), transparent 65%);
+	opacity: .55;
+	filter: blur(6px);
+}
+
+/* Glare that follows the pointer + a one-time shine sweep. */
+.ctc-plate-glare {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	background: radial-gradient(60% 60% at var(--mx) var(--my), rgba(255, 255, 255, .32), transparent 60%);
+	opacity: .35;
+	mix-blend-mode: soft-light;
+	pointer-events: none;
+	transition: opacity .3s;
+}
+
+.ctc-plate::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .35) 48%, transparent 60%);
+	transform: translateX(-120%);
+	animation: ctc-shine 1.6s .6s ease-out both;
+	pointer-events: none;
+}
+
+.ctc-plate:hover .ctc-plate-glare {
+	opacity: .9;
+}
+
+.ctc-plate-top {
+	display: flex;
+	direction: rtl;
+	align-items: center;
+	gap: 10px;
+}
+
+.ctc-plate-logo {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 42px;
+	height: 42px;
+	padding: 5px;
+	border-radius: 13px;
+	background: rgba(255, 255, 255, .96);
+	box-shadow: 0 6px 14px -6px rgba(0, 0, 0, .45);
+}
+
+.ctc-plate-logo svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.ctc-plate-bank {
+	flex: 1;
+	min-width: 0;
+	font-size: 15px;
+	font-weight: 800;
+	line-height: 1.4;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ctc-plate-nfc {
+	width: 24px;
+	height: 24px;
+	opacity: .75;
+	transform: rotate(180deg);
+}
+
+/* EMV chip. */
+.ctc-chip {
+	position: relative;
+	display: block;
+	width: 46px;
+	height: 35px;
+	margin-top: 4px;
+	border-radius: 8px;
+	background:
+		linear-gradient(90deg, transparent 31%, rgba(90, 60, 10, .35) 31% 34%, transparent 34% 66%, rgba(90, 60, 10, .35) 66% 69%, transparent 69%),
+		linear-gradient(0deg, transparent 46%, rgba(90, 60, 10, .35) 46% 54%, transparent 54%),
+		linear-gradient(135deg, #f7e2a1 0%, #d8b25a 40%, #f5dc93 60%, #b98c36 100%);
+	box-shadow: inset 0 0 0 1px rgba(120, 80, 20, .35), 0 2px 4px rgba(0, 0, 0, .25);
+}
+
+.ctc-chip i {
+	position: absolute;
+	inset: 9px 15px;
+	border-radius: 4px;
+	box-shadow: inset 0 0 0 1px rgba(110, 75, 15, .4);
+}
+
+.ctc .ctc-plate-no {
+	display: block;
+	direction: ltr;
+	color: var(--ink);
+	font-family: var(--ctc-font);
+	/* Sized from the card's own width, so 16 digits always fit (cqi = 1% of the plate). */
+	font-size: clamp(14px, 7cqi, 26px);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums lining-nums;
+	letter-spacing: .09em;
+	line-height: 1.3;
+	text-align: left;
+	text-shadow: 0 1px 0 rgba(0, 0, 0, .28), 0 -1px 0 rgba(255, 255, 255, .12);
+	white-space: nowrap;
+	unicode-bidi: isolate;
+}
+
+.ctc .ctc-plate-no.is-sheba {
+	font-size: clamp(11px, 4.3cqi, 17px);
+	letter-spacing: .04em;
+}
+
+.ctc-plate-bottom {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.ctc-plate-holder {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.4;
+}
+
+.ctc-plate-holder small {
+	font-size: 11px;
+	opacity: .75;
+}
+
+.ctc-plate-holder span {
+	font-size: 14px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Skins. */
+.ctc-plate.is-glass {
+	background:
+		radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .45), transparent 55%),
+		linear-gradient(135deg, color-mix(in srgb, var(--c1) 75%, transparent), color-mix(in srgb, var(--c2) 55%, transparent));
+	backdrop-filter: blur(14px) saturate(1.4);
+	-webkit-backdrop-filter: blur(14px) saturate(1.4);
+}
+
+.ctc-plate.is-mono {
+	--ink: #f5f5f7;
+	background:
+		radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .16), transparent 55%),
+		linear-gradient(135deg, #2a2d34, #15171c 70%);
+}
+
+.ctc-plate.is-mono .ctc-plate-bank {
+	color: var(--foil);
+}
+
+/* ---------- Copy buttons ---------- */
+.ctc .ctc-copy {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	padding: 7px 12px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--ctc-surface);
+	box-shadow: inset 0 0 0 1px var(--ctc-line);
+	color: var(--ctc-ink);
+	font-size: 12.5px;
+	font-weight: 700;
+	line-height: 1.4;
+	cursor: pointer;
+	transition: background .2s, color .2s, transform .15s;
+}
+
+.ctc .ctc-copy:hover {
+	background: var(--ctc-soft);
+}
+
+.ctc .ctc-copy:active {
+	transform: scale(.96);
+}
+
+.ctc .ctc-copy .ctc-ic {
+	width: 16px;
+	height: 16px;
+}
+
+.ctc .ctc-copy.is-done {
+	background: var(--ctc-ok);
+	box-shadow: none;
+	color: #fff;
+}
+
+.ctc .ctc-copy.is-glass {
+	position: relative;
+	z-index: 4;
+	background: rgba(255, 255, 255, .18);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35);
+	color: var(--ink);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+
+.ctc .ctc-copy.is-glass:hover {
+	background: rgba(255, 255, 255, .3);
+}
+
+.ctc .ctc-copy.is-glass.is-done {
+	background: #fff;
+	color: var(--ctc-ok);
+}
+
+.ctc .ctc-copy:focus-visible,
+.ctc .ctc-btn:focus-visible,
+.ctc .ctc-switch button:focus-visible {
+	outline: 2px solid var(--ctc-accent);
+	outline-offset: 2px;
+}
+
+/* ---------- Facts ---------- */
+.ctc-facts {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.ctc-fact {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0 10px;
+	padding: 10px 14px;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-soft);
+}
+
+.ctc-fact dt {
+	grid-column: 1;
+	color: var(--ctc-muted);
+	font-size: 12px;
+}
+
+.ctc .ctc-fact dd {
+	grid-column: 1;
+	color: var(--ctc-ink);
+	font-size: 14.5px;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.ctc-fact .ctc-copy {
+	grid-column: 2;
+	grid-row: 1 / span 2;
+}
+
+.ctc-fact.is-amount {
+	background: color-mix(in srgb, var(--ctc-accent) 8%, var(--ctc-surface));
+	box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ctc-accent) 45%, transparent);
+}
+
+.ctc-fact.is-amount b {
+	font-size: 22px;
+	font-weight: 900;
+}
+
+.ctc-fact.is-amount small {
+	color: var(--ctc-muted);
+	font-size: 12px;
+}
+
+.ctc-words {
+	display: block;
+	color: var(--ctc-muted);
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.ctc .ctc-mono {
+	direction: ltr;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: .04em;
+	text-align: right;
+	unicode-bidi: plaintext;
+}
+
+/* ---------- Deadline & how-to ---------- */
+.ctc-deadline {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 14px;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-warn-bg);
+	color: var(--ctc-ink);
+	font-size: 13.5px;
+}
+
+.ctc-deadline .ctc-ic {
+	color: var(--ctc-warn);
+}
+
+.ctc-deadline span {
+	flex: 1;
+	min-width: 0;
+}
+
+.ctc-deadline b {
+	flex: none;
+	padding: 2px 10px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ctc-warn) 14%, transparent);
+	color: var(--ctc-warn);
+	font-weight: 800;
+}
+
+.ctc-deadline b:empty {
+	display: none;
+}
+
+.ctc-howto {
+	display: grid;
+	gap: 10px;
+	counter-reset: h;
+}
+
+.ctc-howto li {
+	position: relative;
+	min-height: 26px;
+	padding-inline-start: 36px;
+	line-height: 1.9;
+	color: var(--ctc-muted);
+	font-size: 14px;
+	counter-increment: h;
+}
+
+.ctc-howto li::before {
+	content: counter(h, persian);
+	position: absolute;
+	inset-inline-start: 0;
+	top: 0;
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--ctc-accent) 12%, transparent);
+	color: var(--ctc-accent);
+	font-size: 13px;
+	font-weight: 800;
+}
+
+/* ---------- Receipt form ---------- */
+.ctc-hp {
+	position: absolute !important;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+}
+
+.ctc-drop {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-height: 120px;
+	padding: 18px;
+	border: 2px dashed var(--ctc-line);
+	border-radius: 18px;
+	background: var(--ctc-soft);
+	cursor: pointer;
+	transition: border-color .2s, background .2s;
+}
+
+.ctc-drop:hover,
+.ctc-drop.is-over {
+	border-color: var(--ctc-accent);
+	background: color-mix(in srgb, var(--ctc-accent) 6%, var(--ctc-surface));
+}
+
+.ctc-drop.is-bad {
+	border-color: var(--ctc-bad);
+	background: var(--ctc-bad-bg);
+}
+
+.ctc-drop.has-file {
+	border-style: solid;
+	border-color: var(--ctc-ok);
+}
+
+.ctc-drop input[type="file"] {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.ctc-drop-ic {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 54px;
+	height: 54px;
+	border-radius: 16px;
+	background: var(--ctc-surface);
+	color: var(--ctc-accent);
+	box-shadow: var(--ctc-shadow);
+}
+
+.ctc-drop-ic .ctc-ic {
+	width: 26px;
+	height: 26px;
+}
+
+.ctc-drop-tx {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	font-size: 13px;
+	color: var(--ctc-muted);
+}
+
+.ctc-drop-tx b {
+	color: var(--ctc-ink);
+	font-size: 14.5px;
+	overflow-wrap: anywhere;
+}
+
+.ctc-preview {
+	flex: none;
+	width: 84px;
+	height: 84px;
+	border-radius: 12px;
+	object-fit: cover;
+	box-shadow: var(--ctc-shadow);
+}
+
+.ctc-preview[hidden] {
+	display: none;
+}
+
+.ctc-fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+}
+
+.ctc-f {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	color: var(--ctc-muted);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.ctc .ctc-f input {
+	width: 100%;
+	height: 48px;
+	margin: 0;
+	padding: 0 14px;
+	border: 0;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-soft);
+	box-shadow: inset 0 0 0 1px var(--ctc-line);
+	color: var(--ctc-ink);
+	font-size: 15px;
+	text-align: left;
+	outline: none;
+	transition: box-shadow .2s;
+}
+
+.ctc .ctc-f textarea,
+.ctc .ctc-f select {
+	width: 100%;
+	margin: 0;
+	padding: 10px 14px;
+	border: 0;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-soft);
+	box-shadow: inset 0 0 0 1px var(--ctc-line);
+	color: var(--ctc-ink);
+	font-size: 15px;
+	line-height: 1.7;
+	outline: none;
+}
+
+.ctc .ctc-f select {
+	height: 48px;
+	padding-block: 0;
+}
+
+.ctc .ctc-f textarea:focus,
+.ctc .ctc-f select:focus {
+	box-shadow: inset 0 0 0 2px var(--ctc-accent);
+}
+
+.ctc .ctc-f input:not([dir="ltr"]) {
+	text-align: right;
+}
+
+.ctc-f.is-wide {
+	grid-column: 1 / -1;
+}
+
+.ctc-f small {
+	color: var(--ctc-muted);
+	font-size: 11.5px;
+	font-weight: 500;
+}
+
+.ctc-req {
+	color: var(--ctc-bad);
+	font-style: normal;
+}
+
+.ctc-hist-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ctc-hist-list li {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	padding: 8px 12px;
+	border-inline-start: 3px solid var(--ctc-line);
+	border-radius: 10px;
+	background: var(--ctc-soft);
+	font-size: 13px;
+	color: var(--ctc-muted);
+}
+
+.ctc-hist-list .is-approved {
+	border-color: var(--ctc-ok);
+}
+
+.ctc-hist-list .is-rejected {
+	border-color: var(--ctc-bad);
+}
+
+.ctc-hist-list .is-pending {
+	border-color: var(--ctc-warn);
+}
+
+.ctc-hist-list b {
+	color: var(--ctc-ink);
+}
+
+.ctc-hist-list em {
+	flex-basis: 100%;
+	font-style: normal;
+	color: var(--ctc-bad);
+}
+
+.ctc .ctc-f input:focus {
+	box-shadow: inset 0 0 0 2px var(--ctc-accent);
+}
+
+.ctc .ctc-f input[aria-invalid="true"] {
+	box-shadow: inset 0 0 0 2px var(--ctc-bad);
+}
+
+.ctc-err {
+	color: var(--ctc-bad);
+	font-size: 13px;
+	font-style: normal;
+	font-weight: 600;
+}
+
+.ctc-err.is-form {
+	padding: 10px 14px;
+	border-radius: var(--ctc-r-md);
+	background: var(--ctc-bad-bg);
+}
+
+/* ---------- Buttons ---------- */
+.ctc .ctc-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 52px;
+	margin: 0;
+	padding: 0 22px;
+	border: 0;
+	border-radius: 16px;
+	background: linear-gradient(140deg, var(--ctc-accent), color-mix(in srgb, var(--ctc-accent) 72%, #000));
+	color: #fff;
+	font-size: 15px;
+	font-weight: 800;
+	line-height: 1.4;
+	text-decoration: none;
+	cursor: pointer;
+	box-shadow: 0 14px 26px -14px var(--ctc-accent);
+	transition: transform .15s, box-shadow .2s, filter .2s;
+}
+
+.ctc .ctc-btn:hover {
+	color: #fff;
+	filter: brightness(1.06);
+	transform: translateY(-1px);
+}
+
+.ctc .ctc-btn.is-ghost {
+	min-height: 46px;
+	background: var(--ctc-surface);
+	box-shadow: inset 0 0 0 1px var(--ctc-line);
+	color: var(--ctc-ink);
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.ctc .ctc-btn.is-ghost:hover {
+	background: var(--ctc-soft);
+	color: var(--ctc-ink);
+}
+
+.ctc .ctc-btn[aria-busy="true"] {
+	opacity: .75;
+	pointer-events: none;
+}
+
+.ctc .ctc-btn[aria-busy="true"] .ctc-ic {
+	animation: ctc-spin 1s linear infinite;
+}
+
+.ctc-submit {
+	width: 100%;
+}
+
+/* ---------- Side column ---------- */
+.ctc-sum ul {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ctc-sum li {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	color: var(--ctc-muted);
+	font-size: 14px;
+}
+
+.ctc-sum li b {
+	flex: none;
+	color: var(--ctc-ink);
+}
+
+.ctc-total {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 10px;
+	padding-top: 14px;
+	border-top: 1px dashed var(--ctc-line);
+	font-size: 14px;
+}
+
+.ctc-total b {
+	font-size: 19px;
+	font-weight: 900;
+}
+
+.ctc-total small {
+	color: var(--ctc-muted);
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.ctc-hist ol {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.ctc-hist li {
+	display: flex;
+	flex-direction: column;
+	padding: 10px 14px;
+	border-inline-start: 3px solid var(--ctc-line);
+	border-radius: 10px;
+	background: var(--ctc-soft);
+	font-size: 13px;
+	color: var(--ctc-muted);
+}
+
+.ctc-hist li b {
+	color: var(--ctc-ink);
+}
+
+.ctc-hist .is-approved {
+	border-color: var(--ctc-ok);
+}
+
+.ctc-hist .is-rejected {
+	border-color: var(--ctc-bad);
+}
+
+.ctc-hist .is-pending {
+	border-color: var(--ctc-warn);
+}
+
+.ctc-hist em {
+	font-style: normal;
+	color: var(--ctc-bad);
+}
+
+.ctc-acts {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.ctc-support {
+	color: var(--ctc-muted);
+	font-size: 13px;
+	text-align: center;
+}
+
+/* ---------- Thank-you / view-order box ---------- */
+.ctc-box {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	margin: 0 0 28px;
+	padding: 22px;
+	border-radius: var(--ctc-r-lg);
+	background: var(--ctc-surface);
+	box-shadow: var(--ctc-shadow), inset 0 0 0 1px var(--ctc-line);
+}
+
+.ctc .ctc-box-h h2 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--ctc-ink);
+	font-size: 17px;
+	font-weight: 800;
+}
+
+.ctc-box-h h2 .ctc-ic {
+	color: var(--ctc-accent);
+}
+
+.ctc-box-h p {
+	color: var(--ctc-muted);
+	font-size: 14px;
+}
+
+.ctc-box-cta {
+	align-self: flex-start;
+}
+
+/* ---------- Motion ---------- */
+@keyframes ctc-plate-in {
+	from {
+		opacity: 0;
+		transform: perspective(900px) rotateX(18deg) translateY(16px) scale(.96);
+	}
+}
+
+@keyframes ctc-shine {
+	to {
+		transform: translateX(120%);
+	}
+}
+
+@keyframes ctc-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ctc-plate,
+	.ctc-plate::after {
+		animation: none;
+	}
+
+	.ctc-plate,
+	.ctc .ctc-btn,
+	.ctc .ctc-copy {
+		transition: none;
+	}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1000px) {
+	.ctc-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+@media (max-width: 760px) {
+	.ctc-cardrow {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.ctc-cardrow .ctc-facts {
+		width: 100%;
+	}
+
+	.ctc-hero {
+		grid-template-columns: auto minmax(0, 1fr);
+		padding: 18px;
+	}
+
+	.ctc-code {
+		grid-column: 1 / -1;
+		flex-direction: row;
+		justify-content: space-between;
+	}
+
+	.ctc-steps-bar {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 4px;
+	}
+
+	.ctc-panel-h {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.ctc-switch {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.ctc .ctc-switch button {
+		flex: none;
+	}
+
+	.ctc-steps-bar li {
+		flex-direction: column;
+		gap: 4px;
+		padding: 8px 4px;
+		border-radius: 14px;
+		font-size: 11px;
+		white-space: normal;
+		text-align: center;
+		line-height: 1.4;
+	}
+
+	.ctc-panel,
+	.ctc-box {
+		padding: 16px;
+	}
+
+	.ctc-fields {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.ctc-shell {
+		padding-top: 18px;
+	}
+
+}
+
+/* Phones: everything a step smaller and calmer, with steady spacing between blocks. */
+@media (max-width: 600px) {
+	.ctc {
+		font-size: 13.5px;
+		line-height: 1.75;
+	}
+
+	.ctc-shell {
+		padding: 14px 12px 40px;
+	}
+
+	.ctc-steps-bar {
+		margin-bottom: 14px;
+	}
+
+	.ctc-steps-bar li {
+		font-size: 10.5px;
+	}
+
+	.ctc-steps-bar li span {
+		width: 20px;
+		height: 20px;
+		font-size: 11px;
+	}
+
+	.ctc-hero {
+		gap: 12px;
+		margin-bottom: 16px;
+		padding: 16px;
+		border-radius: 18px;
+	}
+
+	.ctc-hero-ic {
+		width: 44px;
+		height: 44px;
+		border-radius: 14px;
+	}
+
+	.ctc-hero-ic .ctc-ic {
+		width: 22px;
+		height: 22px;
+	}
+
+	.ctc-kicker {
+		font-size: 12px;
+	}
+
+	.ctc .ctc-hero h1 {
+		font-size: 17px;
+		line-height: 1.6;
+	}
+
+	.ctc-lead {
+		font-size: 13px;
+		line-height: 1.85;
+	}
+
+	.ctc-code {
+		padding: 8px 12px;
+		font-size: 11.5px;
+	}
+
+	.ctc-code b {
+		font-size: 15px;
+	}
+
+	.ctc-alert {
+		margin-bottom: 16px;
+		padding: 12px 14px;
+	}
+
+	.ctc-alert p {
+		font-size: 13px;
+	}
+
+	.ctc-grid,
+	.ctc-main,
+	.ctc-side {
+		gap: 16px;
+	}
+
+	.ctc-panel,
+	.ctc-box {
+		gap: 14px;
+		padding: 14px;
+		border-radius: 18px;
+	}
+
+	.ctc .ctc-panel h2,
+	.ctc .ctc-box-h h2 {
+		font-size: 14.5px;
+	}
+
+	.ctc-cardrow {
+		gap: 14px;
+	}
+
+	.ctc-facts {
+		gap: 8px;
+	}
+
+	.ctc-fact {
+		padding: 9px 12px;
+	}
+
+	.ctc-fact dt {
+		font-size: 11.5px;
+	}
+
+	.ctc .ctc-fact dd {
+		font-size: 13.5px;
+	}
+
+	.ctc-fact.is-amount b {
+		font-size: 18px;
+	}
+
+	.ctc-words {
+		font-size: 11.5px;
+	}
+
+	.ctc .ctc-copy {
+		padding: 6px 10px;
+		font-size: 12px;
+	}
+
+	.ctc-deadline {
+		padding: 9px 12px;
+		font-size: 12.5px;
+	}
+
+	.ctc-howto li {
+		padding-inline-start: 32px;
+		font-size: 13px;
+	}
+
+	.ctc-howto li::before {
+		width: 22px;
+		height: 22px;
+		border-radius: 8px;
+		font-size: 12px;
+	}
+
+	.ctc-drop {
+		gap: 12px;
+		min-height: 92px;
+		padding: 14px;
+		border-radius: 16px;
+	}
+
+	.ctc-drop-ic {
+		width: 44px;
+		height: 44px;
+		border-radius: 14px;
+	}
+
+	.ctc-drop-tx {
+		font-size: 12px;
+	}
+
+	.ctc-drop-tx b {
+		font-size: 13.5px;
+	}
+
+	.ctc-preview {
+		width: 64px;
+		height: 64px;
+	}
+
+	.ctc-f {
+		font-size: 12.5px;
+	}
+
+	.ctc .ctc-f input,
+	.ctc .ctc-f select {
+		height: 44px;
+		font-size: 14px;
+	}
+
+	.ctc .ctc-f textarea {
+		font-size: 14px;
+	}
+
+	.ctc .ctc-btn {
+		min-height: 48px;
+		border-radius: 14px;
+		font-size: 14px;
+	}
+
+	.ctc .ctc-btn.is-ghost {
+		min-height: 44px;
+		font-size: 13px;
+	}
+
+	.ctc-sum li {
+		font-size: 13px;
+	}
+
+	.ctc-total b {
+		font-size: 16px;
+	}
+
+	.ctc-hist li,
+	.ctc-hist-list li {
+		font-size: 12.5px;
+	}
+
+	.ctc-plate {
+		padding: 14px 16px;
+		border-radius: 16px;
+	}
+
+	.ctc-plate-logo {
+		width: 34px;
+		height: 34px;
+		padding: 4px;
+		border-radius: 10px;
+	}
+
+	.ctc-plate-bank {
+		font-size: 13.5px;
+	}
+
+	.ctc-plate-nfc {
+		width: 20px;
+		height: 20px;
+	}
+
+	.ctc-chip {
+		width: 38px;
+		height: 28px;
+		border-radius: 7px;
+	}
+
+	.ctc-chip i {
+		inset: 7px 12px;
+	}
+
+	.ctc-plate-holder span {
+		font-size: 12.5px;
+	}
+
+	.ctc-plate-holder small {
+		font-size: 10px;
+	}
+}
+
+@media (max-width: 420px) {
+	.ctc-drop {
+		flex-wrap: wrap;
+	}
+}
