@@ -260,46 +260,94 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 	);
 }
 
+type Page = { items: OrderRow[]; more: boolean; timing?: { boot: number; query: number; rows: number } };
+type Listing = { items: OrderRow[]; more: boolean; page: number; ms: number; timing?: Page[ 'timing' ] };
+
+/**
+ * Lists kept for the panel's lifetime, per tab: the receipts tab opens at once with what was there
+ * and refreshes quietly. The first page of «در انتظار بررسی» is fetched as soon as the panel opens
+ * (prefetchReceipts), so it is usually ready before the tab is clicked.
+ */
+const cache: Partial<Record<Filter, Listing>> = {};
+const inflight: Partial<Record<Filter, Promise<Listing>>> = {};
+
+const fetchList = ( filter: Filter, page = 1 ): Promise<Listing> => {
+	const t = performance.now();
+	return api<Page>( `receipts?status=${ filter }&page=${ page }` ).then( ( r ) => ( { items: r.items, more: !! r.more, page, ms: performance.now() - t, timing: r.timing } ) );
+};
+
+const firstPage = ( filter: Filter ): Promise<Listing> => {
+	if ( ! inflight[ filter ] ) {
+		inflight[ filter ] = fetchList( filter ).then(
+			( l ) => {
+				cache[ filter ] = l;
+				delete inflight[ filter ];
+				return l;
+			},
+			( e ) => {
+				delete inflight[ filter ];
+				throw e;
+			}
+		);
+	}
+	return inflight[ filter ] as Promise<Listing>;
+};
+
+/** Start loading the review list in the background (called once when the panel opens). */
+export const prefetchReceipts = () => {
+	if ( cache.review || inflight.review ) return; // The tab is already open or loading it.
+	firstPage( 'review' ).catch( () => {} );
+};
+
+const sec = ( n: number ) => fa( n.toFixed( 1 ) ).replace( '.', '٫' );
+
 export function Receipts() {
 	const [ filter, setFilter ] = useState<Filter>( 'review' );
-	const [ rows, setRows ] = useState<OrderRow[] | null>( null );
+	const [ list, setList ] = useState<Listing | null>( () => cache.review ?? null );
 	const [ error, setError ] = useState( '' );
-	const [ page, setPage ] = useState( 1 );
-	const [ more, setMore ] = useState( false );
+	const [ refreshing, setRefreshing ] = useState( false );
 	const [ loadingMore, setLoadingMore ] = useState( false );
 	const [ zoom, setZoom ] = useState( '' );
 	const turn = useRef( 0 );
-	const fetchPage = ( p: number ) => api<{ items: OrderRow[]; more: boolean }>( `receipts?status=${ filter }&page=${ p }` );
-	const load = useCallback( () => {
+	const rows = list?.items ?? null;
+	const keep = ( f: Filter, l: Listing ) => {
+		cache[ f ] = l;
+		setList( l );
+	};
+	const load = useCallback( ( force = false ) => {
 		const mine = ++turn.current;
-		setRows( null );
+		const had = cache[ filter ];
 		setError( '' );
-		setPage( 1 );
-		fetchPage( 1 )
-			.then( ( r ) => {
+		setList( had ?? null );
+		setRefreshing( !! had );
+		if ( force || had ) delete inflight[ filter ];
+		firstPage( filter )
+			.then( ( l ) => {
 				if ( mine !== turn.current ) return; // Another tab was chosen meanwhile.
-				setRows( r.items );
-				setMore( !! r.more );
+				setList( l );
 			} )
 			.catch( ( e ) => {
 				if ( mine !== turn.current ) return;
-				setRows( [] );
-				setError( ( e as Error ).message );
-			} );
+				if ( had ) toast( 'error', 'به‌روزرسانی نشد', ( e as Error ).message );
+				else setError( ( e as Error ).message );
+			} )
+			.finally( () => mine === turn.current && setRefreshing( false ) );
 	}, [ filter ] );
-	useEffect( load, [ load ] );
+	useEffect( () => load(), [ load ] );
 	const loadMore = () => {
+		if ( ! list ) return;
 		const mine = turn.current;
 		setLoadingMore( true );
-		fetchPage( page + 1 )
+		fetchList( filter, list.page + 1 )
 			.then( ( r ) => {
 				if ( mine !== turn.current ) return;
-				setRows( ( prev ) => [ ...( prev ?? [] ), ...r.items.filter( ( n ) => ! ( prev ?? [] ).some( ( o ) => o.id === n.id ) ) ] );
-				setMore( !! r.more );
-				setPage( ( p ) => p + 1 );
+				keep( filter, { ...list, items: [ ...list.items, ...r.items.filter( ( n ) => ! list.items.some( ( o ) => o.id === n.id ) ) ], more: r.more, page: r.page } );
 			} )
 			.catch( ( e ) => toast( 'error', 'بارگذاری نشد', ( e as Error ).message ) )
 			.finally( () => setLoadingMore( false ) );
+	};
+	const setRows = ( fn: ( prev: OrderRow[] | null ) => OrderRow[] ) => {
+		if ( list ) keep( filter, { ...list, items: fn( list.items ) } );
 	};
 
 	const update = ( next: OrderRow ) => setRows( ( prev ) => ( prev ?? [] ).map( ( r ) => ( r.id === next.id ? next : r ) ).filter( ( r ) => filter === 'all' || filter === 'done' || ( filter === 'review' ? r.status === 'ctc-review' : r.status === 'ctc-receipt' ) ) );
@@ -317,10 +365,16 @@ export function Receipts() {
 						{ value: 'all', label: 'همه' },
 					] }
 				/>
-				<button type="button" onClick={ load } className="rounded-full border border-border bg-card px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
-					به‌روزرسانی
+				<button type="button" onClick={ () => load( true ) } disabled={ refreshing } className="rounded-full border border-border bg-card px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60">
+					{ refreshing ? 'در حال به‌روزرسانی…' : 'به‌روزرسانی' }
 				</button>
 			</div>
+			{ list && list.ms > 2500 && list.timing ? (
+				<p className="rounded-2xl bg-[#f59e0b]/10 px-4 py-2.5 text-[12px] leading-6 text-muted-foreground">
+					این فهرست { sec( list.ms / 1000 ) } ثانیه طول کشید: بالا آمدن وردپرس و افزونه‌های سایت { sec( list.timing.boot ) } ث، جستجوی سفارش‌ها { sec( list.timing.query ) } ث، آماده‌سازی رسیدها { sec( list.timing.rows ) } ث
+					{ list.ms / 1000 - list.timing.boot - list.timing.query - list.timing.rows > 1 ? `، شبکه و صف سرور ${ sec( list.ms / 1000 - list.timing.boot - list.timing.query - list.timing.rows ) } ث` : '' }.
+				</p>
+			) : null }
 			{ rows === null ? (
 				<div className="grid gap-4" aria-busy="true" aria-label="در حال بارگذاری رسیدها">
 					{ [ 0, 1 ].map( ( i ) => (
@@ -334,7 +388,7 @@ export function Receipts() {
 					</span>
 					<p className="text-[15px] font-bold">رسیدها بارگذاری نشد</p>
 					<p className="max-w-md text-[13px] leading-6 text-muted-foreground">{ error }</p>
-					<button type="button" onClick={ load } className="rounded-full bg-primary px-5 py-2 text-[13px] font-bold text-white">
+					<button type="button" onClick={ () => load( true ) } className="rounded-full bg-primary px-5 py-2 text-[13px] font-bold text-white">
 						تلاش دوباره
 					</button>
 				</div>
@@ -353,7 +407,7 @@ export function Receipts() {
 							<OrderCard key={ row.id } row={ row } onChange={ update } onZoom={ setZoom } />
 						) ) }
 					</AnimatePresence>
-					{ more ? (
+					{ list?.more ? (
 						<button type="button" disabled={ loadingMore } onClick={ loadMore } className="justify-self-center rounded-full border border-border bg-card px-6 py-2.5 text-[13px] font-bold text-muted-foreground hover:text-foreground disabled:opacity-60">
 							{ loadingMore ? 'در حال بارگذاری…' : 'نمایش بیشتر' }
 						</button>

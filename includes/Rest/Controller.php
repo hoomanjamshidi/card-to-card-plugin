@@ -216,19 +216,39 @@ final class Controller {
 		if ( ! in_array( $status, array( 'review', 'awaiting' ), true ) ) {
 			$query['payment_method'] = Gateway::ID; // Our statuses are ours alone; the others are shared.
 		}
-		$orders = array_values( array_filter( (array) wc_get_orders( $query ), static fn( $o ): bool => $o instanceof \WC_Order && Orders::is_ours( $o ) ) );
-		$more   = count( $orders ) > $per_page;
-		$items  = array();
+		$start   = microtime( true );
+		$orders  = array_values( array_filter( (array) wc_get_orders( $query ), static fn( $o ): bool => $o instanceof \WC_Order && Orders::is_ours( $o ) ) );
+		$queried = microtime( true );
+		$more    = count( $orders ) > $per_page;
+		$items   = array();
+		$missing = array();
 		foreach ( array_slice( $orders, 0, $per_page ) as $order ) {
-			$items[] = self::order_row( $order, true );
+			$row     = self::order_row( $order, true );
+			$items[] = $row;
+			if ( ! empty( $row['_missing'] ) ) {
+				$missing[] = $order->get_id();
+			}
 		}
-		return rest_ensure_response(
+		Receipts::queue_previews( $missing );
+		$done = microtime( true );
+		// Where the time went, in seconds: WordPress + every plugin loading before us, the order
+		// query, and building the rows. The panel shows it when the list is slow.
+		$boot     = isset( $GLOBALS['timestart'] ) ? $start - (float) $GLOBALS['timestart'] : 0.0;
+		$timing   = array(
+			'boot'  => round( $boot, 3 ),
+			'query' => round( $queried - $start, 3 ),
+			'rows'  => round( $done - $queried, 3 ),
+		);
+		$response = rest_ensure_response(
 			array(
-				'items' => $items,
-				'page'  => $page,
-				'more'  => $more,
+				'items'  => array_map( static fn( array $r ): array => array_diff_key( $r, array( '_missing' => 1 ) ), $items ),
+				'page'   => $page,
+				'more'   => $more,
+				'timing' => $timing,
 			)
 		);
+		$response->header( 'Server-Timing', sprintf( 'boot;dur=%d, query;dur=%d, rows;dur=%d', $timing['boot'] * 1000, $timing['query'] * 1000, $timing['rows'] * 1000 ) );
+		return $response;
 	}
 
 	/**
@@ -239,23 +259,20 @@ final class Controller {
 	 * @return array<string, mixed>
 	 */
 	public static function order_row( \WC_Order $order, bool $inline = false ): array {
-		// Small copies missing for older receipts are made a few per request, so one answer never
-		// waits on resizing a whole page of phone photos.
-		static $budget = 4;
-		$all           = Orders::receipts( $order );
-		$latest        = count( $all ) - 1;
-		$receipts      = array();
+		$all      = Orders::receipts( $order );
+		$latest   = count( $all ) - 1;
+		$receipts = array();
+		$missing  = false;
 		foreach ( $all as $i => $r ) {
 			$files = array();
 			foreach ( Receipts::files( $r ) as $f => $file ) {
 				$image   = Receipts::is_image( $file['type'] ) && empty( $r['deleted'] );
 				$preview = '';
 				if ( $inline && $image && $i === $latest ) {
-					$had     = '' !== Receipts::thumb( $file, 'mini', false );
-					$preview = Receipts::preview( $file, $had || $budget > 0 );
-					if ( ! $had && '' !== $preview ) {
-						--$budget;
-					}
+					// Never resize here: a missing copy (older receipt) is made in the background
+					// and the panel shows the thumbnail URL meanwhile.
+					$preview = Receipts::preview( $file, false );
+					$missing = $missing || '' === $preview;
 				}
 				$files[] = array(
 					'url'     => Receipts::file_url( $order->get_id(), (int) $i, (int) $f ),
@@ -295,7 +312,7 @@ final class Controller {
 			);
 		}
 		$deadline = Orders::deadline( $order );
-		return array(
+		$row      = array(
 			'id'       => $order->get_id(),
 			'number'   => (string) $order->get_order_number(),
 			'status'   => $order->get_status(),
@@ -311,6 +328,10 @@ final class Controller {
 			'receipts' => $receipts,
 			'cards'    => $cards,
 		);
+		if ( $missing ) {
+			$row['_missing'] = true;
+		}
+		return $row;
 	}
 
 	/**
@@ -332,7 +353,9 @@ final class Controller {
 		delete_transient( 'ctc_pending_count' );
 		delete_transient( 'ctc_stats' );
 		$fresh = wc_get_order( $order->get_id() );
-		return rest_ensure_response( $fresh instanceof \WC_Order ? self::order_row( $fresh, true ) : array() );
+		$row   = $fresh instanceof \WC_Order ? self::order_row( $fresh, true ) : array();
+		unset( $row['_missing'] );
+		return rest_ensure_response( $row );
 	}
 
 	/**

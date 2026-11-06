@@ -27,7 +27,7 @@ import { SaveButton, type SaveState } from './ui/SaveButton';
 import { SoftSwitch } from './ui/SoftSwitch';
 import { ToastStack, toast } from './ui/Toasts';
 import { Dashboard } from './pages/Dashboard';
-import { Receipts } from './pages/Receipts';
+import { Receipts, prefetchReceipts } from './pages/Receipts';
 import { Cards } from './pages/Cards';
 import { Payment } from './pages/Payment';
 import { Orders } from './pages/Orders';
@@ -80,6 +80,12 @@ export function App() {
 		} ),
 		[ s ]
 	);
+
+	// The receipts list is the slow page on busy hosts: start it as soon as the panel opens.
+	useEffect( () => {
+		const id = window.setTimeout( prefetchReceipts, 300 );
+		return () => window.clearTimeout( id );
+	}, [] );
 
 	const save = useCallback( async () => {
 		if ( state !== 'idle' ) return;
