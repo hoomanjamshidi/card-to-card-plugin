@@ -15,6 +15,7 @@ use CardToCard\Gateway;
 use CardToCard\Orders;
 use CardToCard\Payment_Page;
 use CardToCard\Receipts;
+use CardToCard\Rest\Controller;
 use CardToCard\Settings;
 use CardToCard\Sms\Events;
 use CardToCard\Sms\Melipayamak;
@@ -341,6 +342,13 @@ ctc_ok( $res->get_data()['awaiting'] >= 1, 'stats count awaiting' );
 
 $res = rest_do_request( new WP_REST_Request( 'GET', '/ctc/v1/receipts' ) );
 ctc_eq( 200, $res->get_status(), 'receipts 200' );
+ctc_ok( count( $res->get_data()['items'] ) <= 10 && array_key_exists( 'more', $res->get_data() ), 'receipts list: 10 a page with a «more» flag' );
+foreach ( array( 'review' => Orders::REVIEW, 'awaiting' => Orders::AWAITING ) as $tab => $st ) {
+	$req = new WP_REST_Request( 'GET', '/ctc/v1/receipts' );
+	$req->set_param( 'status', $tab );
+	$res = rest_do_request( $req );
+	ctc_ok( 200 === $res->get_status() && ! array_filter( $res->get_data()['items'], static fn( $r ) => $st !== $r['status'] ), "receipts tab «{$tab}» lists only {$st}" );
+}
 
 [ $o4 ] = ctc_new_order( $pid );
 Receipts::attach( $o4, $fake, '555', '' );
@@ -864,6 +872,144 @@ foreach ( array( $cb, $cb2, $cb3, $manual ) as $o ) {
 	$o->delete( true );
 }
 unset( $_SERVER['REMOTE_ADDR'] );
+
+// ---------------------------------------------------------------------
+// Receipt files in the panel: raw URLs, thumbnails, several files per receipt.
+// ---------------------------------------------------------------------
+$url = Receipts::file_url( 42, 0 );
+ctc_ok( ! str_contains( $url, '&amp;' ) && str_contains( $url, '&i=0' ) && str_contains( $url, '_wpnonce=' ), 'receipt URL is raw (no &amp; that breaks the panel image)', $url );
+ctc_ok( str_contains( Receipts::file_url( 42, 1, 2, true ), '&f=2' ) && str_contains( Receipts::file_url( 42, 1, 2, true ), '&s=thumb' ), 'receipt URL carries the file number and the thumbnail flag' );
+
+$none = array( 'name' => '', 'type' => '', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0 );
+ctc_eq( array(), Receipts::uploads( $none ), 'no file picked → empty upload list' );
+ctc_eq( 1, count( Receipts::uploads( array( 'name' => 'a.png', 'type' => 'image/png', 'tmp_name' => '/tmp/x', 'error' => 0, 'size' => 3 ) ) ), 'single input → one upload' );
+$many = array(
+	'name'     => array( 'a.png', '', 'c.jpg' ),
+	'type'     => array( 'image/png', '', 'image/jpeg' ),
+	'tmp_name' => array( '/tmp/a', '', '/tmp/c' ),
+	'error'    => array( 0, UPLOAD_ERR_NO_FILE, 0 ),
+	'size'     => array( 3, 0, 4 ),
+);
+$list = Receipts::uploads( $many );
+ctc_eq( array( 'a.png', 'c.jpg' ), array_column( $list, 'name' ), 'ctc_file[] → list of picked files, empty slots skipped' );
+$too  = Payment_Page::store_files( $list, 1 );
+ctc_ok( is_wp_error( $too ) && str_contains( $too->get_error_message(), 'یک تصویر' ), 'two files when one is allowed → error', is_wp_error( $too ) ? $too->get_error_message() : $too );
+$too = Payment_Page::store_files( array_merge( $list, $list ), 3 );
+ctc_ok( is_wp_error( $too ) && str_contains( $too->get_error_message(), '۳' ), 'over the maximum → error with the limit' );
+ctc_ok( is_wp_error( Payment_Page::store_files( array(), 5 ) ), 'nothing picked → «pick the receipt» error' );
+
+$rdir = Receipts::dir();
+wp_mkdir_p( $rdir . '/2026/11' );
+$png = static function ( string $name, int $w, int $h ) use ( $rdir ): array {
+	$im = imagecreatetruecolor( $w, $h );
+	imagefill( $im, 0, 0, imagecolorallocate( $im, 40, 120, 200 ) );
+	imagepng( $im, $rdir . '/2026/11/' . $name );
+	imagedestroy( $im );
+	return array( 'path' => '2026/11/' . $name, 'name' => $name, 'type' => 'image/png', 'size' => (int) filesize( $rdir . '/2026/11/' . $name ) );
+};
+$f1    = $png( 'multi-1.png', 1600, 1200 );
+$f2    = $png( 'multi-2.png', 300, 200 );
+$thumb = Receipts::thumb( $f1 );
+ctc_ok( '' !== $thumb && is_file( $thumb ), 'thumbnail made for an image receipt' );
+$size = '' !== $thumb ? getimagesize( $thumb ) : array( 0, 0 );
+ctc_ok( 640 === max( $size[0], $size[1] ), 'thumbnail long side is 640 px', $size );
+ctc_eq( '', Receipts::thumb( array( 'path' => '2026/11/none.pdf', 'type' => 'application/pdf' ) ), 'no thumbnail for a PDF' );
+
+Settings::save( array( 'multi' => false ) );
+[ $mo ] = ctc_new_order( $pid );
+ctc_eq( 1, Payment_Page::max_files( $mo ), 'one receipt file while «چند رسید» is off' );
+ob_start();
+Payment_Page::part( 'payment-page.php', Payment_Page::args( wc_get_order( $mo->get_id() ) ) );
+$html = (string) ob_get_clean();
+ctc_ok( str_contains( $html, 'name="ctc_file"' ) && ! str_contains( $html, ' multiple' ), 'single file input when off' );
+Settings::save( array( 'multi' => true, 'multi_max' => 4, 'multi_min' => 0 ) );
+ctc_eq( 4, Payment_Page::max_files( $mo ), 'panel maximum when on' );
+ob_start();
+Payment_Page::part( 'payment-page.php', Payment_Page::args( wc_get_order( $mo->get_id() ) ) );
+$html = (string) ob_get_clean();
+ctc_ok( str_contains( $html, 'name="ctc_file[]" multiple' ) && str_contains( $html, 'data-files="4"' ) && str_contains( $html, 'data-ctc-files' ), 'multiple input, limit and file list on the page' );
+Settings::save( array( 'multi_min' => (int) $mo->get_total() + 1 ) );
+ctc_eq( 1, Payment_Page::max_files( $mo ), 'order below the minimum total → one file' );
+Settings::save( array( 'multi_max' => 99 ) );
+ctc_eq( 10, (int) Settings::get( 'multi_max' ), 'maximum capped at 10' );
+Settings::save( array( 'multi' => false, 'multi_max' => 5, 'multi_min' => 0 ) );
+
+Receipts::attach( wc_get_order( $mo->get_id() ), $f1 + array( 'more' => array( $f2 ) ), '55', '' );
+$mo   = wc_get_order( $mo->get_id() );
+$rec  = Orders::receipts( $mo )[0];
+ctc_eq( array( 'multi-1.png', 'multi-2.png' ), array_column( Receipts::files( $rec ), 'name' ), 'a receipt lists its main and extra files' );
+$row = Controller::order_row( $mo );
+ctc_eq( 2, count( $row['receipts'][0]['files'] ), 'panel row carries every file' );
+ctc_ok( str_contains( $row['receipts'][0]['files'][1]['url'], '&f=1' ) && str_contains( $row['receipts'][0]['thumb'], 's=thumb' ), 'panel row: file URLs and thumbnail URL' );
+ctc_eq( '', $row['receipts'][0]['preview'], 'no inline picture outside the receipts list' );
+ctc_eq( '', Receipts::preview( $f1, false ), 'no inline picture before its small copy exists (when not allowed to make it)' );
+Receipts::thumb( $f1, 'mini' ); // Made at upload (Receipts::store()).
+Receipts::thumb( $f2, 'mini' );
+$row  = Controller::order_row( $mo, true );
+$mini = $row['receipts'][0]['files'][1]['preview'];
+ctc_ok( str_starts_with( $row['receipts'][0]['preview'], 'data:image/jpeg;base64,' ) && str_starts_with( $mini, 'data:image/jpeg;base64,' ), 'receipts list carries every picture inline (no request per image)' );
+$msize = getimagesizefromstring( (string) base64_decode( substr( (string) $row['receipts'][0]['preview'], 23 ) ) ); // phpcs:ignore
+ctc_ok( is_array( $msize ) && 360 === max( $msize[0], $msize[1] ), 'inline picture is the 360 px copy', $msize );
+ctc_eq( 2, Payment_Page::args( $mo )['history'][0]['files'], 'customer history counts the files' );
+ob_start();
+\CardToCard\Admin\Order_Box::render( $mo );
+$box = (string) ob_get_clean();
+ctc_ok( 2 === substr_count( $box, 's=thumb' ) && ! str_contains( $box, '&amp;amp;' ), 'order screen shows a thumbnail per file' );
+Receipts::delete_files( $mo );
+ctc_ok( ! file_exists( $rdir . '/2026/11/multi-1.png' ) && ! file_exists( $rdir . '/2026/11/multi-2.png' ) && ! file_exists( $thumb ) && ! file_exists( $rdir . '/2026/11/multi-1-mini.jpg' ), 'every file and its small copies deleted with the receipt' );
+
+// Dashboard numbers are cached and dropped on any status change.
+Controller::stats();
+ctc_ok( is_array( get_transient( 'ctc_stats' ) ), 'dashboard stats cached' );
+$mo->update_status( 'cancelled' );
+ctc_ok( false === get_transient( 'ctc_stats' ), 'stats cache dropped on a status change' );
+
+// ---------------------------------------------------------------------
+// Support box on the payment page can be switched off.
+// ---------------------------------------------------------------------
+[ $so ] = ctc_new_order( $pid );
+Settings::save( array( 'support_on' => true, 'support' => 'پاسخ‌گویی ۹ تا ۱۸', 'support_url' => 'https://t.me/shop' ) );
+$sargs = Payment_Page::args( $so );
+ctc_ok( 'https://t.me/shop' === $sargs['chat'] && 'پاسخ‌گویی ۹ تا ۱۸' === $sargs['support'], 'support chat and text shown when on' );
+Settings::save( array( 'support_on' => false ) );
+$sargs = Payment_Page::args( $so );
+ctc_ok( '' === $sargs['chat'] && '' === $sargs['support'], 'support chat and text hidden when off' );
+ob_start();
+Payment_Page::part( 'payment-page.php', $sargs );
+ctc_ok( ! str_contains( (string) ob_get_clean(), 'گفت‌وگو با پشتیبانی' ), 'no chat button on the page when off' );
+Settings::save( array( 'support_on' => true, 'support' => '', 'support_url' => '' ) );
+
+// ---------------------------------------------------------------------
+// SMS: pattern text with separate variables; editable line text.
+// ---------------------------------------------------------------------
+Settings::save( array( 'sms_events' => array() ) );
+$pc = Events::conf( 'placed' );
+ctc_ok( str_contains( $pc['pattern'], Events::pay_base() . '{4}' ) && 5 === count( Events::args( 'placed', Events::sample() ) ), 'sample pattern: payment address in the text, key as the 5th variable' );
+foreach ( array_keys( Events::all() ) as $ev ) {
+	$c = Events::conf( $ev );
+	preg_match_all( '/\{(\d+)\}/', $c['pattern'], $m );
+	ctc_eq( count( preg_split( '/\s+/', trim( $c['vars'] ) ) ), count( array_unique( $m[1] ) ), "sample pattern of «{$ev}» uses every variable" );
+	ctc_ok( '' !== $c['text'], "sample line text of «{$ev}»" );
+}
+ctc_ok( str_starts_with( Events::pattern_text( 'placed', array( 'سارا', '1' ) ), 'سارا عزیز، سفارش 1 ثبت شد.' ), 'pattern text filled with the variables' );
+Settings::save( array( 'sms_events' => array( 'placed' => array( 'on' => true, 'body' => '9', 'vars' => '{name} {order} {total} {key}' ) ) ) );
+ctc_eq( '', Events::conf( 'placed' )['pattern'], 'a pattern saved before pattern texts gets no sample that would not match its variables' );
+ctc_eq( '{name} {order} {total} {key}', Events::conf( 'placed' )['vars'], 'saved variable order kept' );
+Settings::save( array( 'sms_events' => array( 'placed' => array( 'on' => true, 'body' => '9', 'vars' => '{order} {name}', 'pattern' => 'سفارش {0} برای {1}', 'text' => 'متن من {order}' ) ) ) );
+ctc_eq( 'سفارش 7 برای سارا', Events::pattern_text( 'placed', array( '7', 'سارا' ) ), 'own pattern text and order' );
+ctc_eq( 'متن من 7', Events::text( 'placed', array( 'order' => '7' ) ), 'own line text' );
+ctc_eq( 'سفارش {0} برای {1}', Settings::get( 'sms_events' )['placed']['pattern'], 'pattern text stored' );
+Settings::save( array( 'sms_driver' => 'melipayamak', 'mp_mode' => 'pattern', 'mp_user' => 'u', 'mp_pass' => 'p', 'sms_log' => true ) );
+$reply['BaseServiceNumber'] = array( 'Value' => '2185479656544521', 'RetStatus' => 1, 'StrRetStatus' => 'Ok' );
+delete_option( Sender::LOG );
+Sender::send( '09123456789', '9', array( '7', 'سارا' ), '', 'placed' );
+ctc_eq( 'سفارش 7 برای سارا', Sender::get_log()[0]['text'] ?? '', 'send log shows the filled pattern text' );
+Settings::save( array( 'sms_driver' => 'off', 'sms_events' => array() ) );
+delete_option( Sender::LOG );
+
+foreach ( array( $mo, $so ) as $o ) {
+	wc_get_order( $o->get_id() )->delete( true );
+}
 
 // ---------------------------------------------------------------------
 // Clean up.

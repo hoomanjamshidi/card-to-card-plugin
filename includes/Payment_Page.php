@@ -353,6 +353,24 @@ final class Payment_Page {
 	}
 
 	/**
+	 * How many receipt files this order may send at once: 1, or the panel's maximum when «several
+	 * receipts» is on and the order reaches its minimum total.
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return int
+	 */
+	public static function max_files( \WC_Order $order ): int {
+		if ( ! Settings::get( 'multi' ) ) {
+			return 1;
+		}
+		$min = (int) Settings::get( 'multi_min', 0 );
+		if ( $min > 0 && (float) $order->get_total() < $min ) {
+			return 1;
+		}
+		return max( 2, min( 10, (int) Settings::get( 'multi_max', 5 ) ) );
+	}
+
+	/**
 	 * Handle the receipt form (POST, then redirect back on success).
 	 *
 	 * @param \WC_Order $order Order.
@@ -415,8 +433,8 @@ final class Payment_Page {
 		if ( ! $errors ) {
 			// Only real upload attempts count: a forgotten field must never lock the customer out.
 			Util::hit( 'receipt', HOUR_IN_SECONDS, (string) $order->get_id() );
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- checked in Receipts::store().
-			$stored = Receipts::store( isset( $_FILES['ctc_file'] ) && is_array( $_FILES['ctc_file'] ) ? $_FILES['ctc_file'] : array() );
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each file is checked in Receipts::store().
+			$stored = self::store_files( Receipts::uploads( $_FILES['ctc_file'] ?? null ), self::max_files( $order ) );
 			if ( is_wp_error( $stored ) ) {
 				$errors['file'] = $stored->get_error_message();
 			} else {
@@ -465,6 +483,49 @@ final class Payment_Page {
 			wp_safe_redirect( Orders::url( $order ) . '#ctc-state', 303 );
 			exit;
 		}
+	}
+
+	/**
+	 * Store the picked files as one receipt: the first is the main file, the others go in «more».
+	 * One bad file refuses the whole send and removes what was already stored.
+	 *
+	 * @param array<int, array<string, mixed>> $files Upload entries (Receipts::uploads()).
+	 * @param int                              $max   Files allowed.
+	 * @return array<string, mixed>|\WP_Error
+	 */
+	public static function store_files( array $files, int $max ) {
+		if ( ! $files ) {
+			return Receipts::store( array() ); // «Pick the receipt» error.
+		}
+		if ( count( $files ) > $max ) {
+			return new \WP_Error(
+				'file',
+				1 === $max
+					? __( 'فقط یک تصویر رسید بفرستید.', 'card-to-card' )
+					/* translators: %s: number of files */
+					: sprintf( __( 'حداکثر %s فایل رسید می‌توانید بفرستید.', 'card-to-card' ), Persian::digits( (string) $max ) )
+			);
+		}
+		$done = array();
+		foreach ( $files as $i => $file ) {
+			$one = Receipts::store( $file );
+			if ( is_wp_error( $one ) ) {
+				foreach ( $done as $kept ) {
+					Receipts::discard( $kept );
+				}
+				if ( count( $files ) > 1 ) {
+					/* translators: 1: file number, 2: error */
+					return new \WP_Error( 'file', sprintf( __( 'فایل %1$s: %2$s', 'card-to-card' ), Persian::digits( (string) ( $i + 1 ) ), $one->get_error_message() ) );
+				}
+				return $one;
+			}
+			$done[] = $one;
+		}
+		$main = array_shift( $done );
+		if ( $done ) {
+			$main['more'] = $done;
+		}
+		return $main;
 	}
 
 	/**
@@ -579,6 +640,12 @@ final class Payment_Page {
 				'copied'  => __( 'کپی شد', 'card-to-card' ),
 				'copy'    => __( 'کپی', 'card-to-card' ),
 				'pick'    => __( 'اول تصویر رسید را انتخاب کنید.', 'card-to-card' ),
+				'remove'  => __( 'حذف', 'card-to-card' ),
+				'addMore' => __( 'افزودن رسید دیگر', 'card-to-card' ),
+				/* translators: %s: number of files */
+				'nFiles'  => __( '%s فایل انتخاب شد', 'card-to-card' ),
+				/* translators: %s: number of files */
+				'tooMany' => __( 'حداکثر %s فایل می‌توانید بفرستید.', 'card-to-card' ),
 				/* translators: %s: size in MB */
 				'tooBig'  => __( 'حجم فایل بیشتر از %s مگابایت است.', 'card-to-card' ),
 				'sending' => __( 'در حال ارسال…', 'card-to-card' ),
@@ -687,6 +754,7 @@ final class Payment_Page {
 				'state'  => (string) $r['state'],
 				'reason' => (string) ( $r['reason'] ?? '' ),
 				'ref'    => Persian::digits( (string) ( $r['ref'] ?? '' ) ),
+				'files'  => count( Receipts::files( $r ) ),
 			);
 		}
 		$rejected = 'pay' === $state && $last && 'rejected' === ( $last['state'] ?? '' );
@@ -725,6 +793,7 @@ final class Payment_Page {
 				'accept'   => Receipts::accept(),
 				'max_mb'   => self::max_mb(),
 				'max_size' => self::max_bytes(),
+				'files'    => self::max_files( $order ),
 				'pdf'      => (bool) Settings::get( 'pdf' ),
 				'ref'      => (string) Settings::get( 'ref', 'optional' ),
 				'last4'    => (string) Settings::get( 'last4', 'optional' ),
@@ -744,8 +813,8 @@ final class Payment_Page {
 			'items'    => $items,
 			'view'     => $user && $user === (int) $order->get_customer_id() ? $order->get_view_order_url() : '',
 			'shop'     => function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'shop' ) : home_url( '/' ),
-			'support'  => Util::tokens( (string) Settings::get( 'support' ), $tokens ),
-			'chat'     => (string) Settings::get( 'support_url' ),
+			'support'  => Settings::get( 'support_on' ) ? Util::tokens( (string) Settings::get( 'support' ), $tokens ) : '',
+			'chat'     => Settings::get( 'support_on' ) ? (string) Settings::get( 'support_url' ) : '',
 			'scheme'   => (string) Settings::get( 'scheme', 'light' ),
 			'tilt'     => (bool) Settings::get( 'tilt' ),
 		);

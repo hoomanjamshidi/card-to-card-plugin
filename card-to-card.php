@@ -3,7 +3,7 @@
  * Plugin Name:       کارت به کارت حرفه‌ای ووکامرس
  * Plugin URI:        https://github.com/hoomanjamshidi/card-to-card-plugin
  * Description:       درگاه کارت به کارت برای ووکامرس با کارت هم‌رنگ بانک، صفحه پرداخت اختصاصی، آپلود و بررسی رسید، مهلت و لغو خودکار، پیامک ملی‌پیامک (پترن و خط) و پنل تنظیمات مدرن. روی هر قالبی کار می‌کند.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Requires Plugins:  woocommerce
@@ -21,7 +21,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CTC_VERSION', '1.1.0' );
+define( 'CTC_VERSION', '1.2.0' );
 define( 'CTC_FILE', __FILE__ );
 define( 'CTC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CTC_URL', plugin_dir_url( __FILE__ ) );

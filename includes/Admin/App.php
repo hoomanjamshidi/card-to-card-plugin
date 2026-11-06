@@ -121,12 +121,13 @@ final class App {
 		$events = array();
 		foreach ( Events::all() as $key => $event ) {
 			$events[ $key ] = array(
-				'label' => $event['label'],
-				'to'    => $event['to'],
-				'desc'  => $event['desc'],
-				'vars'  => $event['vars'],
-				'text'  => $event['text'],
-				'on'    => $event['on'],
+				'label'   => $event['label'],
+				'to'      => $event['to'],
+				'desc'    => $event['desc'],
+				'vars'    => $event['vars'],
+				'pattern' => (string) ( $event['pattern'] ?? '' ),
+				'text'    => $event['text'],
+				'on'      => $event['on'],
 			);
 		}
 		return array(
@@ -141,6 +142,7 @@ final class App {
 			'themeColors' => \CardToCard\Support\Colors::theme(),
 			'themeName'   => wp_get_theme()->get( 'Name' ),
 			'tokens'      => Events::token_labels(),
+			'payBase'     => Events::pay_base(),
 			'unit'        => Util::unit(),
 			'home'        => home_url( '/' ),
 			'site'        => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),

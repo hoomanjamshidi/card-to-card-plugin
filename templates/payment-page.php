@@ -39,6 +39,7 @@ $ctc_hist  = array(
 $ctc_form  = $args['form'];
 $ctc_err   = ! empty( $ctc_form ) ? $ctc_form['errors'] : array();
 $ctc_cards = (array) $args['cards'];
+$ctc_files = ! empty( $ctc_form['files'] ) ? max( 1, (int) $ctc_form['files'] ) : 1;
 $ctc_solo  = ! $ctc_cards && ! $ctc_form;
 ?>
 <div class="ctc ctc-page is-<?php echo esc_attr( $ctc_state ); ?>" data-scheme="<?php echo esc_attr( $args['scheme'] ); ?>" dir="rtl">
@@ -130,7 +131,7 @@ $ctc_solo  = ! $ctc_cards && ! $ctc_form;
 			<?php endif; ?>
 
 			<?php if ( $ctc_form ) : ?>
-				<form class="ctc-panel ctc-form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( $ctc_form['action'] ); ?>#ctc-form" id="ctc-form" data-ctc-form data-max="<?php echo esc_attr( (string) $ctc_form['max_size'] ); ?>" novalidate>
+				<form class="ctc-panel ctc-form" method="post" enctype="multipart/form-data" action="<?php echo esc_url( $ctc_form['action'] ); ?>#ctc-form" id="ctc-form" data-ctc-form data-max="<?php echo esc_attr( (string) $ctc_form['max_size'] ); ?>" data-files="<?php echo esc_attr( (string) $ctc_files ); ?>" novalidate>
 					<header class="ctc-panel-h"><h2><?php echo Util::icon( 'upload' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'ارسال رسید واریز', 'card-to-card' ); ?></h2></header>
 					<input type="hidden" name="ctc_nonce" value="<?php echo esc_attr( $ctc_form['nonce'] ); ?>">
 					<p class="ctc-hp" aria-hidden="true"><label>Website<input type="text" name="ctc_hp" tabindex="-1" autocomplete="off"></label></p>
@@ -139,25 +140,36 @@ $ctc_solo  = ! $ctc_cards && ! $ctc_form;
 					<?php endif; ?>
 
 					<label class="ctc-drop<?php echo ! empty( $ctc_err['file'] ) ? ' is-bad' : ''; ?>">
-						<input type="file" name="ctc_file" accept="<?php echo esc_attr( $ctc_form['accept'] ); ?>" required aria-describedby="ctc-file-h<?php echo ! empty( $ctc_err['file'] ) ? ' ctc-file-e' : ''; ?>"<?php echo ! empty( $ctc_err['file'] ) ? ' aria-invalid="true"' : ''; ?>>
+						<input type="file" name="<?php echo $ctc_files > 1 ? 'ctc_file[]' : 'ctc_file'; ?>"<?php echo $ctc_files > 1 ? ' multiple' : ''; ?> accept="<?php echo esc_attr( $ctc_form['accept'] ); ?>" required aria-describedby="ctc-file-h<?php echo ! empty( $ctc_err['file'] ) ? ' ctc-file-e' : ''; ?>"<?php echo ! empty( $ctc_err['file'] ) ? ' aria-invalid="true"' : ''; ?>>
 						<span class="ctc-drop-ic" aria-hidden="true"><?php echo Util::icon( 'image' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 						<span class="ctc-drop-tx">
 							<b data-ctc-name><?php echo esc_html( $ctc_form['labels']['file'] ); ?></b>
 							<span id="ctc-file-h">
 								<?php
 								echo esc_html(
-									sprintf(
-										/* translators: 1: formats, 2: size in MB */
-										__( '%1$s — حداکثر %2$s مگابایت', 'card-to-card' ),
-										$ctc_form['pdf'] ? __( 'عکس یا PDF', 'card-to-card' ) : __( 'عکس', 'card-to-card' ),
-										Persian::digits( (string) $ctc_form['max_mb'] )
-									)
+									$ctc_files > 1
+										? sprintf(
+											/* translators: 1: formats, 2: number of files, 3: size in MB */
+											__( '%1$s — تا %2$s فایل، هر کدام حداکثر %3$s مگابایت', 'card-to-card' ),
+											$ctc_form['pdf'] ? __( 'عکس یا PDF', 'card-to-card' ) : __( 'عکس', 'card-to-card' ),
+											Persian::digits( (string) $ctc_files ),
+											Persian::digits( (string) $ctc_form['max_mb'] )
+										)
+										: sprintf(
+											/* translators: 1: formats, 2: size in MB */
+											__( '%1$s — حداکثر %2$s مگابایت', 'card-to-card' ),
+											$ctc_form['pdf'] ? __( 'عکس یا PDF', 'card-to-card' ) : __( 'عکس', 'card-to-card' ),
+											Persian::digits( (string) $ctc_form['max_mb'] )
+										)
 								);
 								?>
 							</span>
 						</span>
 						<img class="ctc-preview" alt="" hidden data-ctc-preview>
 					</label>
+					<?php if ( $ctc_files > 1 ) : ?>
+						<ul class="ctc-files" data-ctc-files hidden aria-live="polite"></ul>
+					<?php endif; ?>
 					<?php if ( ! empty( $ctc_err['file'] ) ) : ?>
 						<p class="ctc-err" id="ctc-file-e" role="alert"><?php echo esc_html( $ctc_err['file'] ); ?></p>
 					<?php endif; ?>
@@ -234,6 +246,10 @@ $ctc_solo  = ! $ctc_cards && ! $ctc_form;
 							<li class="is-<?php echo esc_attr( $ctc_h['state'] ); ?>">
 								<b><?php echo esc_html( $ctc_hist[ $ctc_h['state'] ] ?? $ctc_h['state'] ); ?></b>
 								<span><?php echo esc_html( $ctc_h['date'] ); ?></span>
+								<?php if ( ! empty( $ctc_h['files'] ) && $ctc_h['files'] > 1 ) : ?>
+									<?php /* translators: %s: number of files */ ?>
+									<small><?php echo esc_html( sprintf( __( '%s فایل', 'card-to-card' ), Persian::digits( (string) $ctc_h['files'] ) ) ); ?></small>
+								<?php endif; ?>
 								<?php if ( '' !== $ctc_h['reason'] ) : ?>
 									<em><?php echo esc_html( $ctc_h['reason'] ); ?></em>
 								<?php endif; ?>

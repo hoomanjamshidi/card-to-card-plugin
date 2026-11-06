@@ -93,7 +93,7 @@ final class Sender {
 				'to'    => '' !== $mobile ? $mobile : Persian::latin( $to ),
 				'mode'  => $mode,
 				'body'  => $body,
-				'text'  => 'line' === $mode || 'log' === $mode ? $text : implode( ' ؛ ', $args ),
+				'text'  => self::log_text( $mode, $event, $args, $text ),
 				'ok'    => ! is_wp_error( $result ),
 				'msg'   => is_wp_error( $result ) ? $result->get_error_message() : '',
 				'rec'   => is_string( $result ) ? $result : '',
@@ -108,6 +108,24 @@ final class Sender {
 		 */
 		do_action( 'ctc_sms_sent', is_wp_error( $result ) ? $result : true, $mobile, $event );
 		return is_wp_error( $result ) ? $result : true;
+	}
+
+	/**
+	 * Text kept in the send log: the full text, or for a pattern the pattern text filled with its
+	 * variables (or the bare variables when the shop has not written the pattern text).
+	 *
+	 * @param string             $mode  line | log | pattern | off.
+	 * @param string             $event Event key.
+	 * @param array<int, string> $args  Variables.
+	 * @param string             $text  Full text.
+	 * @return string
+	 */
+	private static function log_text( string $mode, string $event, array $args, string $text ): string {
+		if ( 'pattern' !== $mode ) {
+			return $text;
+		}
+		$filled = isset( Events::all()[ $event ] ) ? Events::pattern_text( $event, $args ) : '';
+		return '' !== $filled ? $filled : implode( ' ؛ ', $args );
 	}
 
 	/**

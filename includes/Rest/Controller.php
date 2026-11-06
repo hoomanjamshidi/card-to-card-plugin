@@ -94,6 +94,7 @@ final class Controller {
 						'type'    => 'integer',
 						'default' => 1,
 						'minimum' => 1,
+						'maximum' => 1000,
 					),
 				),
 			)
@@ -185,7 +186,11 @@ final class Controller {
 	}
 
 	/**
-	 * Receipts list.
+	 * Receipts list, 10 orders a page, newest first.
+	 *
+	 * Kept light for big shops on shared hosting: the review / awaiting tabs ask for our own statuses
+	 * only (no join on the payment method), there is no total count query (one extra row tells
+	 * whether there is a next page), and the pictures travel inline in this answer.
 	 *
 	 * @param \WP_REST_Request $request Request.
 	 * @return \WP_REST_Response
@@ -197,30 +202,31 @@ final class Controller {
 			'done'     => array( 'wc-processing', 'wc-completed', 'wc-cancelled' ),
 			'all'      => array_keys( wc_get_order_statuses() ),
 		);
-		$status   = (string) $request['status'];
-		$per_page = 20;
-		$result   = wc_get_orders(
-			array(
-				'payment_method' => Gateway::ID,
-				'status'         => $map[ $status ] ?? $map['review'],
-				'limit'          => $per_page,
-				'page'           => (int) $request['page'],
-				'paginate'       => true,
-				'orderby'        => 'date',
-				'order'          => 'DESC',
-			)
+		$status   = isset( $map[ (string) $request['status'] ] ) ? (string) $request['status'] : 'review';
+		$per_page = 10;
+		$page     = max( 1, (int) $request['page'] );
+		$query    = array(
+			'status'  => $map[ $status ],
+			'limit'   => $per_page + 1,
+			'offset'  => ( $page - 1 ) * $per_page,
+			'orderby' => 'date',
+			'order'   => 'DESC',
+			'type'    => 'shop_order',
 		);
-		$items    = array();
-		foreach ( $result->orders as $order ) {
-			if ( $order instanceof \WC_Order ) {
-				$items[] = self::order_row( $order );
-			}
+		if ( ! in_array( $status, array( 'review', 'awaiting' ), true ) ) {
+			$query['payment_method'] = Gateway::ID; // Our statuses are ours alone; the others are shared.
+		}
+		$orders = array_values( array_filter( (array) wc_get_orders( $query ), static fn( $o ): bool => $o instanceof \WC_Order && Orders::is_ours( $o ) ) );
+		$more   = count( $orders ) > $per_page;
+		$items  = array();
+		foreach ( array_slice( $orders, 0, $per_page ) as $order ) {
+			$items[] = self::order_row( $order, true );
 		}
 		return rest_ensure_response(
 			array(
 				'items' => $items,
-				'total' => (int) $result->total,
-				'pages' => (int) $result->max_num_pages,
+				'page'  => $page,
+				'more'  => $more,
 			)
 		);
 	}
@@ -228,16 +234,45 @@ final class Controller {
 	/**
 	 * One order for the panel.
 	 *
-	 * @param \WC_Order $order Order.
+	 * @param \WC_Order $order  Order.
+	 * @param bool      $inline Put the latest receipt's pictures inline (receipts list).
 	 * @return array<string, mixed>
 	 */
-	public static function order_row( \WC_Order $order ): array {
-		$receipts = array();
-		foreach ( Orders::receipts( $order ) as $i => $r ) {
+	public static function order_row( \WC_Order $order, bool $inline = false ): array {
+		// Small copies missing for older receipts are made a few per request, so one answer never
+		// waits on resizing a whole page of phone photos.
+		static $budget = 4;
+		$all           = Orders::receipts( $order );
+		$latest        = count( $all ) - 1;
+		$receipts      = array();
+		foreach ( $all as $i => $r ) {
+			$files = array();
+			foreach ( Receipts::files( $r ) as $f => $file ) {
+				$image   = Receipts::is_image( $file['type'] ) && empty( $r['deleted'] );
+				$preview = '';
+				if ( $inline && $image && $i === $latest ) {
+					$had     = '' !== Receipts::thumb( $file, 'mini', false );
+					$preview = Receipts::preview( $file, $had || $budget > 0 );
+					if ( ! $had && '' !== $preview ) {
+						--$budget;
+					}
+				}
+				$files[] = array(
+					'url'     => Receipts::file_url( $order->get_id(), (int) $i, (int) $f ),
+					'thumb'   => $image ? Receipts::file_url( $order->get_id(), (int) $i, (int) $f, true ) : '',
+					'preview' => $preview,
+					'image'   => $image,
+					'type'    => $file['type'],
+					'name'    => $file['name'],
+				);
+			}
 			$receipts[] = array(
 				'index'   => $i,
-				'url'     => Receipts::file_url( $order->get_id(), (int) $i ),
-				'image'   => in_array( (string) $r['type'], array( 'image/jpeg', 'image/png', 'image/webp' ), true ),
+				'url'     => $files[0]['url'] ?? '',
+				'thumb'   => $files[0]['thumb'] ?? '',
+				'preview' => $files[0]['preview'] ?? '',
+				'files'   => $files,
+				'image'   => Receipts::is_image( (string) $r['type'] ),
 				'type'    => (string) $r['type'],
 				'name'    => (string) $r['name'],
 				'time'    => Util::jdate( 'j F، H:i', (int) $r['time'] ),
@@ -295,8 +330,9 @@ final class Controller {
 			return $result;
 		}
 		delete_transient( 'ctc_pending_count' );
+		delete_transient( 'ctc_stats' );
 		$fresh = wc_get_order( $order->get_id() );
-		return rest_ensure_response( $fresh instanceof \WC_Order ? self::order_row( $fresh ) : array() );
+		return rest_ensure_response( $fresh instanceof \WC_Order ? self::order_row( $fresh, true ) : array() );
 	}
 
 	/**
@@ -305,6 +341,12 @@ final class Controller {
 	 * @return \WP_REST_Response
 	 */
 	public static function stats() {
+		$cached = get_transient( 'ctc_stats' );
+		if ( is_array( $cached ) ) {
+			$cached['enabled'] = App::gateway_enabled();
+			$cached['cards']   = count( Settings::cards() );
+			return rest_ensure_response( $cached );
+		}
 		$count = static fn( array $status ): int => (int) wc_get_orders(
 			array(
 				'payment_method' => Gateway::ID,
@@ -320,6 +362,7 @@ final class Controller {
 				'status'         => array( 'wc-processing', 'wc-completed' ),
 				'date_paid'      => '>' . ( time() - 30 * DAY_IN_SECONDS ),
 				'limit'          => 500,
+				'orderby'        => 'none',
 			)
 		);
 		$sum   = 0.0;
@@ -335,18 +378,20 @@ final class Controller {
 				$days[ 13 - $ago ] += (float) $order->get_total();
 			}
 		}
-		return rest_ensure_response(
-			array(
-				'review'   => $count( array( 'wc-' . Orders::REVIEW ) ),
-				'awaiting' => $count( array( 'wc-' . Orders::AWAITING ) ),
-				'paid30'   => count( $paid ),
-				'sum30'    => $sum,
-				'days'     => $days,
-				'unit'     => Util::unit(),
-				'enabled'  => App::gateway_enabled(),
-				'cards'    => count( Settings::cards() ),
-			)
+		$stats = array(
+			'review'   => $count( array( 'wc-' . Orders::REVIEW ) ),
+			'awaiting' => $count( array( 'wc-' . Orders::AWAITING ) ),
+			'paid30'   => count( $paid ),
+			'sum30'    => $sum,
+			'days'     => $days,
+			'unit'     => Util::unit(),
+			'enabled'  => App::gateway_enabled(),
+			'cards'    => count( Settings::cards() ),
 		);
+		// Loading a month of orders is the slow part on big shops: keep the numbers for a few
+		// minutes (any status change of our orders drops them, see Plugin::flush_count()).
+		set_transient( 'ctc_stats', $stats, 5 * MINUTE_IN_SECONDS );
+		return rest_ensure_response( $stats );
 	}
 
 	/**

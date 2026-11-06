@@ -25,7 +25,7 @@ export type ReceiptField = {
 	ltr: boolean;
 };
 
-export type SmsEventConf = { on: boolean; body: string; vars: string; text: string };
+export type SmsEventConf = { on: boolean; body: string; vars: string; pattern: string; text: string };
 
 export type Settings = {
 	enabled: boolean;
@@ -43,6 +43,9 @@ export type Settings = {
 	remind: number;
 	max_mb: number;
 	pdf: boolean;
+	multi: boolean;
+	multi_max: number;
+	multi_min: number;
 	ref: 'hidden' | 'optional' | 'required';
 	last4: 'hidden' | 'optional' | 'required';
 	ref_label: string;
@@ -69,6 +72,7 @@ export type Settings = {
 	text_reject: string;
 	text_paid: string;
 	text_expired: string;
+	support_on: boolean;
 	support: string;
 	support_url: string;
 	layout: 'theme' | 'standalone';
@@ -112,7 +116,7 @@ export type Bank = {
 	logo: string;
 };
 
-export type EventDef = { label: string; to: 'customer' | 'admin'; desc: string; vars: string; text: string; on: boolean };
+export type EventDef = { label: string; to: 'customer' | 'admin'; desc: string; vars: string; pattern: string; text: string; on: boolean };
 
 export type Boot = {
 	rest: string;
@@ -126,6 +130,7 @@ export type Boot = {
 	themeColors: ThemeColor[];
 	themeName: string;
 	tokens: Record<string, string>;
+	payBase: string;
 	unit: string;
 	home: string;
 	site: string;
@@ -135,9 +140,14 @@ export type Boot = {
 	blocks: boolean;
 };
 
+export type ReceiptFile = { url: string; thumb: string; preview: string; image: boolean; type: string; name: string };
+
 export type Receipt = {
 	index: number;
 	url: string;
+	thumb: string;
+	preview: string;
+	files: ReceiptFile[];
 	image: boolean;
 	type: string;
 	name: string;

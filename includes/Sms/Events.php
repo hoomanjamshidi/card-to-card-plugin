@@ -1,9 +1,12 @@
 <?php
 /**
- * SMS events of the card-to-card flow. Each event has (panel «پیامک»): on/off, a Melipayamak pattern
- * code with its variable order («{name} {order} {total}» → {0} {1} {2}) for pattern mode, and a full
- * text with {tokens} for line mode. Messages are queued in the background (Action Scheduler) and sent
- * once per order and event unless the event may repeat (reminder, rejection).
+ * SMS events of the card-to-card flow. Each event has (panel «پیامک»): on/off and
+ *  - pattern mode: a Melipayamak pattern code, its variable order («{name} {order} {total}» → {0} {1}
+ *    {2}, each variable sent separately) and the pattern text itself (with {0} {1} …; a sample is
+ *    given to copy into the Melipayamak panel, and the panel previews it — it is never sent);
+ *  - line mode: a full text with {tokens}, written by the shop (a sample is given).
+ * Messages are queued in the background (Action Scheduler) and sent once per order and event unless
+ * the event may repeat (reminder, rejection).
  *
  * @package CardToCard
  */
@@ -31,75 +34,101 @@ final class Events {
 	}
 
 	/**
-	 * Event definitions.
+	 * Address of the payment page without the key: a pattern holds it as plain text and only {key}
+	 * is a variable (Melipayamak refuses links inside variables, error -10).
 	 *
-	 * @return array<string, array{label:string, to:string, vars:string, text:string, on:bool, desc:string}>
+	 * @return string
+	 */
+	public static function pay_base(): string {
+		if ( get_option( 'permalink_structure' ) ) {
+			return home_url( '/' . Settings::get( 'slug', 'card-pay' ) . '/' );
+		}
+		return home_url( '/?ctc_pay=' );
+	}
+
+	/**
+	 * Event definitions. «vars» + «pattern» are the sample pattern (variables in order and the text to
+	 * register in Melipayamak), «text» the sample full text of line mode.
+	 *
+	 * @return array<string, array{label:string, to:string, vars:string, pattern:string, text:string, on:bool, desc:string}>
 	 */
 	public static function all(): array {
+		$base   = self::pay_base();
 		$events = array(
 			'placed'        => array(
-				'label' => __( 'ثبت سفارش + لینک پرداخت', 'card-to-card' ),
-				'to'    => 'customer',
-				'vars'  => '{name} {order} {total} {key}',
-				'text'  => __( "{name} عزیز، سفارش {order} ثبت شد.\nمبلغ {total} را به کارت {card} ({bank}) واریز کنید و رسید را تا {deadline} بفرستید:\n{link}", 'card-to-card' ),
-				'on'    => true,
-				'desc'  => __( 'اگر الگوی خدماتی لینک را در متغیر نپذیرفت (خطای ‎-10)، آدرس ثابت سایت و مسیر صفحه پرداخت را در متن الگو بنویسید و فقط {key} را متغیر بگذارید.', 'card-to-card' ),
+				'label'   => __( 'ثبت سفارش + لینک پرداخت', 'card-to-card' ),
+				'to'      => 'customer',
+				'vars'    => '{name} {order} {total} {deadline} {key}',
+				/* translators: %s: payment page address without the key */
+				'pattern' => sprintf( __( "{0} عزیز، سفارش {1} ثبت شد.\nمبلغ {2} را کارت به کارت کنید و رسید را تا {3} از این لینک بفرستید:\n%s{4}", 'card-to-card' ), $base ),
+				'text'    => __( "{name} عزیز، سفارش {order} ثبت شد.\nمبلغ {total} را به کارت {card} ({bank}) واریز کنید و رسید را تا {deadline} بفرستید:\n{link}", 'card-to-card' ),
+				'on'      => true,
+				'desc'    => __( 'الگوهای خدماتی ملی‌پیامک لینکِ داخل متغیر را رد می‌کنند؛ برای همین آدرس صفحه پرداخت در خود متن الگو می‌آید و فقط {key} متغیر است — مثل متن نمونه.', 'card-to-card' ),
 			),
 			'received'      => array(
-				'label' => __( 'رسید دریافت شد (به مشتری)', 'card-to-card' ),
-				'to'    => 'customer',
-				'vars'  => '{name} {order}',
-				'text'  => __( '{name} عزیز، رسید سفارش {order} رسید و به‌زودی بررسی می‌شود.', 'card-to-card' ),
-				'on'    => true,
-				'desc'  => '',
+				'label'   => __( 'رسید دریافت شد (به مشتری)', 'card-to-card' ),
+				'to'      => 'customer',
+				'vars'    => '{name} {order}',
+				'pattern' => __( '{0} عزیز، رسید سفارش {1} دریافت شد و به‌زودی بررسی می‌شود.', 'card-to-card' ),
+				'text'    => __( '{name} عزیز، رسید سفارش {order} رسید و به‌زودی بررسی می‌شود.', 'card-to-card' ),
+				'on'      => true,
+				'desc'    => '',
 			),
 			'approved'      => array(
-				'label' => __( 'رسید تأیید شد', 'card-to-card' ),
-				'to'    => 'customer',
-				'vars'  => '{name} {order}',
-				'text'  => __( '{name} عزیز، پرداخت سفارش {order} تأیید شد و سفارشتان در حال آماده‌سازی است.', 'card-to-card' ),
-				'on'    => true,
-				'desc'  => '',
+				'label'   => __( 'رسید تأیید شد', 'card-to-card' ),
+				'to'      => 'customer',
+				'vars'    => '{name} {order}',
+				'pattern' => __( '{0} عزیز، پرداخت سفارش {1} تأیید شد و سفارشتان در حال آماده‌سازی است.', 'card-to-card' ),
+				'text'    => __( '{name} عزیز، پرداخت سفارش {order} تأیید شد و سفارشتان در حال آماده‌سازی است.', 'card-to-card' ),
+				'on'      => true,
+				'desc'    => '',
 			),
 			'rejected'      => array(
-				'label' => __( 'رسید رد شد', 'card-to-card' ),
-				'to'    => 'customer',
-				'vars'  => '{name} {order} {reason}',
-				'text'  => __( "{name} عزیز، رسید سفارش {order} تأیید نشد.\nدلیل: {reason}\nارسال دوباره رسید: {link}", 'card-to-card' ),
-				'on'    => true,
-				'desc'  => '',
+				'label'   => __( 'رسید رد شد', 'card-to-card' ),
+				'to'      => 'customer',
+				'vars'    => '{name} {order} {reason} {key}',
+				/* translators: %s: payment page address without the key */
+				'pattern' => sprintf( __( "{0} عزیز، رسید سفارش {1} تأیید نشد.\nدلیل: {2}\nارسال دوباره رسید:\n%s{3}", 'card-to-card' ), $base ),
+				'text'    => __( "{name} عزیز، رسید سفارش {order} تأیید نشد.\nدلیل: {reason}\nارسال دوباره رسید: {link}", 'card-to-card' ),
+				'on'      => true,
+				'desc'    => '',
 			),
 			'remind'        => array(
-				'label' => __( 'یادآوری ارسال رسید', 'card-to-card' ),
-				'to'    => 'customer',
-				'vars'  => '{name} {order} {deadline}',
-				'text'  => __( "{name} عزیز، مهلت ارسال رسید سفارش {order} تا {deadline} است:\n{link}", 'card-to-card' ),
-				'on'    => true,
-				'desc'  => '',
+				'label'   => __( 'یادآوری ارسال رسید', 'card-to-card' ),
+				'to'      => 'customer',
+				'vars'    => '{name} {order} {deadline} {key}',
+				/* translators: %s: payment page address without the key */
+				'pattern' => sprintf( __( "{0} عزیز، مهلت ارسال رسید سفارش {1} تا {2} است:\n%s{3}", 'card-to-card' ), $base ),
+				'text'    => __( "{name} عزیز، مهلت ارسال رسید سفارش {order} تا {deadline} است:\n{link}", 'card-to-card' ),
+				'on'      => true,
+				'desc'    => '',
 			),
 			'cancelled'     => array(
-				'label' => __( 'لغو خودکار (رسید نرسید)', 'card-to-card' ),
-				'to'    => 'customer',
-				'vars'  => '{name} {order}',
-				'text'  => __( '{name} عزیز، مهلت ارسال رسید سفارش {order} تمام شد و سفارش لغو شد.', 'card-to-card' ),
-				'on'    => true,
-				'desc'  => '',
+				'label'   => __( 'لغو خودکار (رسید نرسید)', 'card-to-card' ),
+				'to'      => 'customer',
+				'vars'    => '{name} {order}',
+				'pattern' => __( '{0} عزیز، مهلت ارسال رسید سفارش {1} تمام شد و سفارش لغو شد.', 'card-to-card' ),
+				'text'    => __( '{name} عزیز، مهلت ارسال رسید سفارش {order} تمام شد و سفارش لغو شد.', 'card-to-card' ),
+				'on'      => true,
+				'desc'    => '',
 			),
 			'admin_new'     => array(
-				'label' => __( 'سفارش کارت به کارت جدید (به مدیر)', 'card-to-card' ),
-				'to'    => 'admin',
-				'vars'  => '{order} {total}',
-				'text'  => __( 'سفارش کارت به کارت جدید {order} به مبلغ {total}', 'card-to-card' ),
-				'on'    => false,
-				'desc'  => '',
+				'label'   => __( 'سفارش کارت به کارت جدید (به مدیر)', 'card-to-card' ),
+				'to'      => 'admin',
+				'vars'    => '{order} {total}',
+				'pattern' => __( 'سفارش کارت به کارت جدید {0} به مبلغ {1}', 'card-to-card' ),
+				'text'    => __( 'سفارش کارت به کارت جدید {order} به مبلغ {total}', 'card-to-card' ),
+				'on'      => false,
+				'desc'    => '',
 			),
 			'admin_receipt' => array(
-				'label' => __( 'رسید جدید برای بررسی (به مدیر)', 'card-to-card' ),
-				'to'    => 'admin',
-				'vars'  => '{order} {total}',
-				'text'  => __( 'رسید سفارش {order} ({total}) برای بررسی رسید.', 'card-to-card' ),
-				'on'    => true,
-				'desc'  => '',
+				'label'   => __( 'رسید جدید برای بررسی (به مدیر)', 'card-to-card' ),
+				'to'      => 'admin',
+				'vars'    => '{order} {total}',
+				'pattern' => __( 'رسید سفارش {0} ({1}) برای بررسی رسید.', 'card-to-card' ),
+				'text'    => __( 'رسید سفارش {order} ({total}) برای بررسی رسید.', 'card-to-card' ),
+				'on'      => true,
+				'desc'    => '',
 			),
 		);
 		/**
@@ -136,20 +165,25 @@ final class Events {
 	 * Saved configuration of an event over its defaults.
 	 *
 	 * @param string $event Event key.
-	 * @return array{on:bool, body:string, vars:string, text:string}
+	 * @return array{on:bool, body:string, vars:string, pattern:string, text:string}
 	 */
 	public static function conf( string $event ): array {
 		$def   = self::all()[ $event ] ?? array(
-			'on'   => false,
-			'vars' => '',
-			'text' => '',
+			'on'      => false,
+			'vars'    => '',
+			'pattern' => '',
+			'text'    => '',
 		);
 		$saved = (array) ( ( (array) Settings::get( 'sms_events', array() ) )[ $event ] ?? array() );
+		$pick  = static fn( string $key ): string => '' !== trim( (string) ( $saved[ $key ] ?? '' ) ) ? (string) $saved[ $key ] : (string) ( $def[ $key ] ?? '' );
 		return array(
-			'on'   => (bool) ( $saved['on'] ?? $def['on'] ),
-			'body' => (string) ( $saved['body'] ?? '' ),
-			'vars' => '' !== (string) ( $saved['vars'] ?? '' ) ? (string) $saved['vars'] : (string) $def['vars'],
-			'text' => '' !== (string) ( $saved['text'] ?? '' ) ? (string) $saved['text'] : (string) $def['text'],
+			'on'      => (bool) ( $saved['on'] ?? $def['on'] ),
+			'body'    => (string) ( $saved['body'] ?? '' ),
+			'vars'    => $pick( 'vars' ),
+			// A pattern saved before its text existed keeps its variables: no sample text that
+			// would not match them.
+			'pattern' => '' !== trim( (string) ( $saved['pattern'] ?? '' ) ) || '' === trim( (string) ( $saved['vars'] ?? '' ) ) ? $pick( 'pattern' ) : '',
+			'text'    => $pick( 'text' ),
 		);
 	}
 
@@ -225,6 +259,22 @@ final class Events {
 			$out[] = (string) ( $tokens[ $name ] ?? '' );
 		}
 		return $out;
+	}
+
+	/**
+	 * Pattern text with its {0} {1} … filled (send log and preview; the pattern itself is sent by
+	 * Melipayamak). '' when the shop has not written the pattern text.
+	 *
+	 * @param string             $event Event key.
+	 * @param array<int, string> $args  Variables in order.
+	 * @return string
+	 */
+	public static function pattern_text( string $event, array $args ): string {
+		$pattern = self::conf( $event )['pattern'];
+		if ( '' === trim( $pattern ) ) {
+			return '';
+		}
+		return trim( (string) preg_replace_callback( '/\{(\d+)\}/', static fn( array $m ): string => (string) ( $args[ (int) $m[1] ] ?? $m[0] ), $pattern ) );
 	}
 
 	/**
