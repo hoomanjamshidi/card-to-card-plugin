@@ -1,6 +1,6 @@
 {
   "name": "card-to-card-plugin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Card to card payment gateway for WooCommerce — build tooling and tests.",
   "license": "GPL-2.0-or-later",
