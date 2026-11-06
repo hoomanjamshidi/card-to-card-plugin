@@ -12,7 +12,8 @@ import { useStore } from '../lib/store';
 import type { SmsEventConf } from '../lib/types';
 import { boot, cn, fa } from '../lib/utils';
 import { NumberTicker } from '../ui/NumberTicker';
-import { Row, Section, SwitchRow, TextInput, TokenArea } from '../ui/Field';
+import { Row, Section, SwitchRow, TextInput } from '../ui/Field';
+import { PatternEditor, TextEditor, fillNamed, parseVars } from '../components/SmsPattern';
 import { Segmented } from '../ui/Segmented';
 import { SoftSelect } from '../ui/SoftSelect';
 import { SoftSwitch } from '../ui/SoftSwitch';
@@ -21,31 +22,23 @@ import { toast } from '../ui/Toasts';
 type Test = { ok: boolean; credit: number | null; message: string; sent: boolean | null };
 type LogEntry = { t: number; event: string; to: string; mode: string; text: string; ok: boolean; msg: string };
 
-const SAMPLE: Record<string, string> = {
-	name: 'سارا محمدی',
-	first_name: 'سارا',
-	order: '1024',
-	total: '۱٬۴۶۳٬۰۰۰ تومان',
-	link: `${ boot().home }card-pay/1024-0123456789abcdef/`,
-	key: '1024-0123456789abcdef',
-	deadline: '۱۵ آبان، ۱۸:۳۰',
-	card: '6104 3379 1234 5678',
-	bank: 'بانک ملت',
-	holder: boot().site,
-	reason: 'مبلغ واریزی کمتر از مبلغ سفارش است',
-	shop: boot().site,
-};
-
-const fill = ( text: string ) => text.replace( /\{([a-z_]+)\}/g, ( m, k ) => SAMPLE[ k ] ?? m );
-
 function EventRow( { id, mode }: { id: string; mode: 'pattern' | 'line' } ) {
 	const { s, set } = useStore();
 	const def = boot().events[ id ];
 	const saved = s.sms_events[ id ] ?? {};
-	const conf: SmsEventConf = { on: saved.on ?? def.on, body: saved.body ?? '', vars: saved.vars || def.vars, text: saved.text || def.text };
+	const savedVars = ( saved.vars ?? '' ).trim();
+	const conf: SmsEventConf = {
+		on: saved.on ?? def.on,
+		body: saved.body ?? '',
+		vars: savedVars || def.vars,
+		// Same rule as Events::conf(): a pattern configured before pattern texts existed keeps its
+		// variables and gets no sample text that would not match them.
+		pattern: ( saved.pattern ?? '' ).trim() ? ( saved.pattern as string ) : savedVars ? '' : def.pattern,
+		text: ( saved.text ?? '' ).trim() ? ( saved.text as string ) : def.text,
+	};
 	const [ open, setOpen ] = useState( false );
 	const update = ( patch: Partial<SmsEventConf> ) => set( 'sms_events', { ...s.sms_events, [ id ]: { ...conf, ...patch } } );
-	const vars = [ ...conf.vars.matchAll( /\{([a-z0-9_]+)\}/g ) ].map( ( m ) => m[ 1 ] );
+	const summary = mode === 'pattern' ? ( conf.body ? `الگو ${ fa( conf.body ) } · ${ fa( parseVars( conf.vars ).length ) } متغیر` : 'کد الگو وارد نشده' ) : fillNamed( conf.text ).split( '\n' )[ 0 ];
 	return (
 		<div className={ cn( 'rounded-2xl border transition-colors', open ? 'border-border bg-background/60' : 'border-transparent' ) }>
 			<div className="flex items-center gap-3 px-3 py-3">
@@ -55,10 +48,11 @@ function EventRow( { id, mode }: { id: string; mode: 'pattern' | 'line' } ) {
 				<button type="button" onClick={ () => setOpen( ( o ) => ! o ) } className="min-w-0 flex-1 text-start">
 					<p className="text-[14px] font-bold">{ def.label }</p>
 					<p className="truncate text-[12px] text-muted-foreground">
-						{ def.to === 'admin' ? 'به مدیر' : 'به مشتری' } — { mode === 'pattern' ? ( conf.body ? `الگو ${ fa( conf.body ) }` : 'کد الگو وارد نشده' ) : 'متن کامل' }
+						{ def.to === 'admin' ? 'به مدیر' : 'به مشتری' } — { summary }
 					</p>
 				</button>
-				<button type="button" onClick={ () => setOpen( ( o ) => ! o ) } aria-label="جزئیات" className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent">
+				<button type="button" onClick={ () => setOpen( ( o ) => ! o ) } aria-label="ویرایش" className="flex h-8 items-center gap-1 rounded-full px-2.5 text-[12px] text-muted-foreground hover:bg-accent">
+					{ open ? 'بستن' : 'ویرایش' }
 					<motion.span className="flex items-center justify-center" animate={ { rotate: open ? 180 : 0 } }>
 						<HugeiconsIcon icon={ ArrowDown01Icon } size={ 16 } />
 					</motion.span>
@@ -70,38 +64,7 @@ function EventRow( { id, mode }: { id: string; mode: 'pattern' | 'line' } ) {
 					<motion.div initial={ { height: 0, opacity: 0 } } animate={ { height: 'auto', opacity: 1 } } exit={ { height: 0, opacity: 0 } } className="overflow-hidden">
 						<div className="flex flex-col gap-3 px-3 pb-4">
 							{ def.desc ? <p className="rounded-xl bg-[#f59e0b]/10 px-3 py-2 text-[12px] leading-6 text-foreground">{ def.desc }</p> : null }
-							{ mode === 'pattern' ? (
-								<>
-									<div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
-										<label className="flex flex-col gap-1.5 text-[12.5px] font-bold">
-											کد الگو (bodyId)
-											<TextInput value={ conf.body } onChange={ ( v ) => update( { body: v.replace( /\D/g, '' ) } ) } dir="ltr" inputMode="numeric" placeholder="123456" />
-										</label>
-										<label className="flex flex-col gap-1.5 text-[12.5px] font-bold">
-											ترتیب متغیرها
-											<TextInput value={ conf.vars } onChange={ ( v ) => update( { vars: v } ) } dir="ltr" placeholder="{name} {order}" />
-										</label>
-									</div>
-									<div className="flex flex-wrap gap-1.5">
-										{ vars.map( ( v, i ) => (
-											<span key={ i } className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[12px]">
-												<b dir="ltr" className="text-primary">{ `{${ i }}` }</b>
-												{ boot().tokens[ v ] ?? v }
-												<span className="text-muted-foreground">= { SAMPLE[ v ] ?? '—' }</span>
-											</span>
-										) ) }
-									</div>
-									<p className="text-[12px] text-muted-foreground">در متن الگوی ملی‌پیامک به‌جای هر مقدار، {`{0}`}، {`{1}`} و … را به همین ترتیب بنویسید.</p>
-								</>
-							) : (
-								<>
-									<TokenArea value={ conf.text } onChange={ ( v ) => update( { text: v } ) } tokens={ boot().tokens } rows={ 3 } />
-									<div className="rounded-2xl bg-muted p-3">
-										<p className="mb-1 text-[11.5px] font-bold text-muted-foreground">پیش‌نمایش پیامک</p>
-										<p className="whitespace-pre-line text-[13px] leading-7">{ fill( conf.text ) }</p>
-									</div>
-								</>
-							) }
+							{ mode === 'pattern' ? <PatternEditor def={ def } conf={ conf } update={ update } /> : <TextEditor def={ def } conf={ conf } update={ update } /> }
 						</div>
 					</motion.div>
 				) : null }
@@ -218,7 +181,7 @@ export function Sms() {
 			) : null }
 
 			{ s.sms_driver !== 'off' ? (
-				<Section title="پیامک‌ها" icon={ Notification03Icon } desc={ s.mp_mode === 'pattern' && mp ? 'برای هر پیامک کد الگو و ترتیب متغیرها را وارد کنید.' : 'متن هر پیامک را بنویسید؛ متغیرها هنگام ارسال پر می‌شوند.' }>
+				<Section title="پیامک‌ها" icon={ Notification03Icon } desc={ s.mp_mode === 'pattern' && mp ? 'هر پیامک: متن الگو (نمونه آماده است)، کد الگوی تأییدشده و متغیرها که هر کدام جداگانه ارسال می‌شوند. روی «ویرایش» بزنید.' : 'متن هر پیامک را خودتان بنویسید (متن نمونه آماده است)؛ متغیرها هنگام ارسال پر می‌شوند. روی «ویرایش» بزنید.' }>
 					{ Object.keys( boot().events ).map( ( id ) => (
 						<EventRow key={ id } id={ id } mode={ mp ? s.mp_mode : 'line' } />
 					) ) }

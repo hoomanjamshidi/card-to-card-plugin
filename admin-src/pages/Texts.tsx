@@ -3,7 +3,7 @@
  */
 import { ShoppingCart01Icon, TextFontIcon, CustomerSupportIcon } from '@hugeicons/core-free-icons';
 import { useStore } from '../lib/store';
-import { Row, Section, TextArea, TextInput, TokenArea } from '../ui/Field';
+import { Row, Section, SwitchRow, TextArea, TextInput, TokenArea } from '../ui/Field';
 
 const PAGE_TOKENS = {
 	first_name: 'نام مشتری',
@@ -54,13 +54,18 @@ export function Texts() {
 				</Row>
 			</Section>
 
-			<Section title="پشتیبانی" icon={ CustomerSupportIcon }>
-				<Row label="متن پشتیبانی" help="زیر ستون خلاصه سفارش؛ مثلاً ساعت پاسخ‌گویی یا شماره تماس." stack>
-					<TextArea value={ s.support } onChange={ ( v ) => set( 'support', v ) } rows={ 2 } />
-				</Row>
-				<Row label="لینک گفت‌وگو با پشتیبانی" help="تلگرام، واتساپ، بله یا صفحه تماس. خالی = دکمه نمایش داده نمی‌شود.">
-					<TextInput value={ s.support_url } onChange={ ( v ) => set( 'support_url', v ) } dir="ltr" placeholder="https://t.me/…" aria-label="لینک پشتیبانی" />
-				</Row>
+			<Section title="پشتیبانی" icon={ CustomerSupportIcon } desc="دکمه «گفت‌وگو با پشتیبانی» و متن پاسخ‌گویی زیر ستون خلاصه سفارش در صفحه پرداخت.">
+				<SwitchRow label="نمایش بخش پشتیبانی" help="خاموش = دکمه گفت‌وگو و متن پاسخ‌گویی هیچ‌کدام نمایش داده نمی‌شوند (متن‌ها ذخیره می‌مانند)." checked={ s.support_on } onChange={ ( v ) => set( 'support_on', v ) } />
+				{ s.support_on ? (
+					<>
+						<Row label="لینک گفت‌وگو با پشتیبانی" help="تلگرام، واتساپ، بله یا صفحه تماس. خالی = دکمه نمایش داده نمی‌شود.">
+							<TextInput value={ s.support_url } onChange={ ( v ) => set( 'support_url', v ) } dir="ltr" placeholder="https://t.me/…" aria-label="لینک پشتیبانی" />
+						</Row>
+						<Row label="متن پاسخ‌گویی" help="زیر دکمه؛ مثلاً ساعت پاسخ‌گویی یا شماره تماس. خالی = نمایش داده نمی‌شود." stack>
+							<TextArea value={ s.support } onChange={ ( v ) => set( 'support', v ) } rows={ 2 } placeholder="پاسخ‌گویی شنبه تا پنجشنبه، ۹ تا ۱۸" />
+						</Row>
+					</>
+				) : null }
 			</Section>
 		</>
 	);

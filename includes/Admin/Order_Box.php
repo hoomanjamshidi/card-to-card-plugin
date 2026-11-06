@@ -29,6 +29,7 @@ final class Order_Box {
 	 */
 	public static function init(): void {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add' ), 30, 2 );
+		add_action( 'add_meta_boxes', array( __CLASS__, 'raise' ), 999 );
 		add_action( 'woocommerce_process_shop_order_meta', array( __CLASS__, 'save' ), 60 );
 		add_action( 'admin_notices', array( __CLASS__, 'notices' ) );
 		add_action( 'admin_head', array( __CLASS__, 'css' ) );
@@ -52,7 +53,37 @@ final class Order_Box {
 	}
 
 	/**
-	 * Box content. Buttons submit the order form itself (no nested forms).
+	 * Put the receipt right under WooCommerce's «Order actions»: WooCommerce registers its own side
+	 * boxes (order attribution, customer history) after ours, which pushed the receipt to the bottom
+	 * of the column. A manager's own drag-and-drop order (saved by WordPress) still wins.
+	 *
+	 * @param string $screen_id Screen.
+	 */
+	public static function raise( $screen_id ): void {
+		global $wp_meta_boxes;
+		$screen_id = (string) $screen_id;
+		if ( ! isset( $wp_meta_boxes[ $screen_id ]['side']['high']['ctc-receipt'] ) ) {
+			return;
+		}
+		$high = (array) $wp_meta_boxes[ $screen_id ]['side']['high'];
+		$box  = $high['ctc-receipt'];
+		unset( $high['ctc-receipt'] );
+		$out = array();
+		foreach ( $high as $id => $one ) {
+			$out[ $id ] = $one;
+			if ( 'woocommerce-order-actions' === $id ) {
+				$out['ctc-receipt'] = $box;
+			}
+		}
+		if ( ! isset( $out['ctc-receipt'] ) ) {
+			$out = array( 'ctc-receipt' => $box ) + $out;
+		}
+		$wp_meta_boxes[ $screen_id ]['side']['high'] = $out; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- reordering registered boxes only.
+	}
+
+	/**
+	 * Box content: receipts first (newest on top), the decision buttons, then the destination cards.
+	 * Buttons submit the order form itself (no nested forms).
 	 *
 	 * @param \WP_Post|\WC_Order $data_object Order or post.
 	 */
@@ -70,10 +101,6 @@ final class Order_Box {
 		);
 		wp_nonce_field( 'ctc_box', 'ctc_box_nonce' );
 		echo '<div class="ctc-box-admin">';
-		echo '<p><a href="' . esc_url( Orders::url( $order ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'صفحه پرداخت مشتری', 'card-to-card' ) . ' ↗</a></p>';
-		foreach ( Orders::cards( $order ) as $card ) {
-			echo '<p class="ctc-adm-card" style="--c1:' . esc_attr( (string) $card['palette']['colors'][0] ) . ';--c2:' . esc_attr( (string) $card['palette']['colors'][1] ) . ';--ink:' . esc_attr( (string) $card['palette']['ink'] ) . '"><span>' . esc_html( (string) $card['bank_name'] ) . '</span><b dir="ltr">' . esc_html( (string) $card['number_fmt'] ) . '</b></p>';
-		}
 		if ( $order->has_status( Orders::AWAITING ) && $deadline ) {
 			/* translators: %s: Jalali date and time */
 			echo '<p>' . esc_html( sprintf( __( 'مهلت ارسال رسید: %s', 'card-to-card' ), Util::jdate( 'j F، H:i', $deadline ) ) ) . '</p>';
@@ -82,7 +109,6 @@ final class Order_Box {
 			echo '<p class="ctc-muted">' . esc_html__( 'هنوز رسیدی ارسال نشده است.', 'card-to-card' ) . '</p>';
 		}
 		foreach ( array_reverse( $receipts, true ) as $i => $r ) {
-			$url   = Receipts::file_url( $order->get_id(), (int) $i );
 			$state = (string) ( $r['state'] ?? 'pending' );
 			echo '<div class="ctc-r is-' . esc_attr( $state ) . '">';
 			foreach ( Fraud::present( $r ) as $flag ) {
@@ -95,10 +121,24 @@ final class Order_Box {
 			if ( ! empty( $r['deleted'] ) ) {
 				/* translators: %s: Jalali date */
 				echo '<p class="ctc-muted">' . esc_html( sprintf( __( 'فایل رسید طبق تنظیمات نگهداری در %s حذف شد.', 'card-to-card' ), Util::jdate( 'j F Y', (int) $r['deleted'] ) ) ) . '</p>';
-			} elseif ( in_array( (string) $r['type'], array( 'image/jpeg', 'image/png', 'image/webp' ), true ) ) {
-				echo '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener"><img src="' . esc_url( $url ) . '" alt="' . esc_attr__( 'رسید', 'card-to-card' ) . '" loading="lazy"></a>';
 			} else {
-				echo '<a class="button" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . esc_html__( 'دانلود فایل رسید', 'card-to-card' ) . '</a>';
+				$files = Receipts::files( $r );
+				echo '<div class="ctc-r-files' . ( count( $files ) > 1 ? ' is-many' : '' ) . '">';
+				foreach ( $files as $f => $file ) {
+					$url = Receipts::file_url( $order->get_id(), (int) $i, (int) $f );
+					if ( Receipts::is_image( $file['type'] ) ) {
+						$thumb = Receipts::file_url( $order->get_id(), (int) $i, (int) $f, true );
+						/* translators: %s: file number */
+						echo '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener"><img src="' . esc_url( $thumb ) . '" alt="' . esc_attr( sprintf( __( 'رسید %s', 'card-to-card' ), Persian::digits( (string) ( $f + 1 ) ) ) ) . '" loading="lazy"></a>';
+					} else {
+						echo '<a class="button" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . esc_html( count( $files ) > 1 ? $file['name'] : __( 'دانلود فایل رسید', 'card-to-card' ) ) . '</a>';
+					}
+				}
+				echo '</div>';
+				if ( count( $files ) > 1 ) {
+					/* translators: %s: number of files */
+					echo '<p class="ctc-muted">' . esc_html( sprintf( __( '%s فایل در این رسید؛ برای دیدن اندازه کامل روی هر تصویر بزنید.', 'card-to-card' ), Persian::digits( (string) count( $files ) ) ) ) . '</p>';
+				}
 			}
 			echo '<p><b>' . esc_html( $labels[ $state ] ?? $state ) . '</b> — ' . esc_html( Util::jdate( 'j F، H:i', (int) $r['time'] ) ) . '</p>';
 			if ( '' !== (string) ( $r['ref'] ?? '' ) ) {
@@ -131,6 +171,14 @@ final class Order_Box {
 			echo '<textarea id="ctc-reason" name="ctc_reason" rows="2" style="width:100%"></textarea></p>';
 			echo '<p><button type="submit" class="button" name="ctc_do" value="reject">' . esc_html__( 'رد رسید', 'card-to-card' ) . '</button></p>';
 		}
+		$cards = Orders::cards( $order );
+		if ( $cards ) {
+			echo '<p class="ctc-muted ctc-adm-h">' . esc_html( count( $cards ) > 1 ? __( 'کارت‌های مقصد این سفارش', 'card-to-card' ) : __( 'کارت مقصد این سفارش', 'card-to-card' ) ) . '</p>';
+		}
+		foreach ( $cards as $card ) {
+			echo '<p class="ctc-adm-card" style="--c1:' . esc_attr( (string) $card['palette']['colors'][0] ) . ';--c2:' . esc_attr( (string) $card['palette']['colors'][1] ) . ';--ink:' . esc_attr( (string) $card['palette']['ink'] ) . '"><span>' . esc_html( (string) $card['bank_name'] ) . '</span><b dir="ltr">' . esc_html( (string) $card['number_fmt'] ) . '</b></p>';
+		}
+		echo '<p><a href="' . esc_url( Orders::url( $order ) ) . '" target="_blank" rel="noopener">' . esc_html__( 'صفحه پرداخت مشتری', 'card-to-card' ) . ' ↗</a></p>';
 		echo '</div>';
 	}
 
@@ -200,10 +248,11 @@ final class Order_Box {
 			. '.order-status.status-ctc-review{background:#dbe7ff;color:#2446a6}'
 			. '.ctc-r{margin:0 0 12px;padding:8px;border:1px solid #dcdcde;border-radius:8px}'
 			. '.ctc-r.is-pending{border-color:#dba617;background:#fffbea}.ctc-r.is-approved{border-color:#68de7c}.ctc-r.is-rejected{opacity:.7}'
-			. '.ctc-r img{display:block;max-width:100%;height:auto;border-radius:6px}.ctc-r p{margin:6px 0 0}'
+			. '.ctc-r img{display:block;max-width:100%;height:auto;border-radius:6px;background:#f0f0f1}.ctc-r p{margin:6px 0 0}'
+			. '.ctc-r-files.is-many{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.ctc-r-files.is-many img{aspect-ratio:3/4;object-fit:cover;width:100%}.ctc-r-files .button{max-width:100%;overflow:hidden;text-overflow:ellipsis}'
 			. '.ctc-flag{padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.7}.ctc-flag.is-danger{background:#fde8e8;color:#9b1c1c}.ctc-flag.is-warn{background:#fff7e0;color:#7a5200}'
-			. '.ctc-adm-card{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c2));color:var(--ink)}'
-			. '.ctc-adm-card b{font-size:14px;letter-spacing:1px;text-align:left}.ctc-muted{color:#646970}'
+			. '.ctc-adm-card{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 0;padding:6px 10px;border-radius:8px;background:linear-gradient(135deg,var(--c1),var(--c2));color:var(--ink);font-size:12px}'
+			. '.ctc-adm-card b{font-size:12.5px;letter-spacing:.5px}.ctc-muted{color:#646970}.ctc-adm-h{margin:14px 0 2px;font-size:12px}'
 			. '</style>';
 	}
 }

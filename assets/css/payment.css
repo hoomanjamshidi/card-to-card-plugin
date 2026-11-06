@@ -957,6 +957,102 @@
 	display: none;
 }
 
+/* Several receipt files: the picked list under the drop zone. */
+.ctc-files {
+	display: grid;
+	gap: 8px;
+	margin: 10px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ctc-files[hidden] {
+	display: none;
+}
+
+.ctc-file {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+	margin: 0;
+	padding: 8px;
+	border: 1px solid var(--ctc-line);
+	border-radius: 14px;
+	background: var(--ctc-surface);
+}
+
+.ctc-file.is-bad {
+	border-color: var(--ctc-bad);
+	background: var(--ctc-bad-bg);
+}
+
+.ctc-file img,
+.ctc-file-ext {
+	flex: none;
+	width: 48px;
+	height: 48px;
+	border: 1px solid var(--ctc-line);
+	border-radius: 10px;
+	object-fit: cover;
+}
+
+.ctc-file-ext {
+	display: grid;
+	place-items: center;
+	background: var(--ctc-soft);
+	color: var(--ctc-muted);
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.ctc-file-tx {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	font-size: 12px;
+	color: var(--ctc-muted);
+}
+
+.ctc-file-tx b {
+	overflow: hidden;
+	color: var(--ctc-ink);
+	font-size: 13px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
+}
+
+.ctc .ctc-file-rm {
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: var(--ctc-soft);
+	color: var(--ctc-muted);
+	font: inherit;
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.ctc .ctc-file-rm:hover,
+.ctc .ctc-file-rm:focus-visible {
+	background: var(--ctc-bad-bg);
+	color: var(--ctc-bad);
+}
+
+.ctc-hist small {
+	color: var(--ctc-muted);
+	font-size: 12px;
+}
+
 .ctc-fields {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

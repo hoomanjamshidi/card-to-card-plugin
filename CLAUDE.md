@@ -84,7 +84,9 @@ All of these must resolve to `Orders::url()` / `Orders::receipt_url()`. Never bu
   check via `wp_check_filetype_and_ext`) → `ctc_receipt_check` filter → `attach()` → 303 redirect (PRG).
   A POST larger than `post_max_size` arrives empty and must show the size error, not a blank form.
 - Receipt files are never public: no media library, no URL; streamed via `admin-post.php?action=ctc_file`
-  with nonce + `edit_shop_orders`, `nosniff`, sandbox CSP.
+  with nonce + `edit_shop_orders`, `nosniff`, sandbox CSP. `Receipts::file_url()` returns a raw URL (escape at
+  output): `wp_nonce_url()`'s `&amp;` broke every image in the panel JSON. Lists show the 640 px
+  `-thumb.jpg` copy (`&s=thumb`), made at upload or on first view.
 - Strict mode (`Orders::guard_status`): an unapproved order in our statuses can never become
   processing/completed except through `Orders::approve()` (which sets `Orders::approving(true)`).
 - Our statuses count as unpaid (`woocommerce_order_is_pending_statuses`) and are removed from
@@ -93,7 +95,8 @@ All of these must resolve to `Orders::url()` / `Orders::receipt_url()`. Never bu
   `rejected`, `received`, `admin_receipt` may repeat.
 
 Order meta keys: `_ctc_cards`, `_ctc_deadline`, `_ctc_receipts` (list of receipts: path, name, type, size,
-time, ref, last4, fields, state, reason, by, at, deleted, flags), `_ctc_reason`, `_ctc_approved`,
+time, ref, last4, fields, state, reason, by, at, deleted, flags, and `more` = extra files of a multi-file
+receipt; read every file with `Receipts::files()`, never `path` alone), `_ctc_reason`, `_ctc_approved`,
 `_ctc_expired`, `_ctc_sms_sent`.
 
 ## Working rules

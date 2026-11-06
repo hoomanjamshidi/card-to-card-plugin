@@ -75,6 +75,34 @@ grep -q 'رسید در حال بررسی' "$TMP/page2.html" && ! grep -q 'name="
 # Admin stream needs login + nonce.
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/wp-admin/admin-post.php?action=ctc_file&order=$ID&i=0"); ok $([ "$code" != 200 ]; echo $?) "anonymous cannot stream a receipt ($code)"
 
+# Admin (dev-site test account): panel URLs are raw, the receipt and its thumbnail stream.
+curl -s -c "$TMP/cj" -o /dev/null "$BASE/wp-login.php"
+curl -s -b "$TMP/cj" -c "$TMP/cj" -o /dev/null -b 'wordpress_test_cookie=WP+Cookie+check' --data 'log=admin&pwd=password&testcookie=1' "$BASE/wp-login.php"
+RN=$(curl -s -b "$TMP/cj" "$BASE/wp-admin/admin.php?page=card-to-card" | grep -o '"rest":"[^"]*","nonce":"[a-f0-9]*"' | grep -o '[a-f0-9]\{10\}"$' | tr -d '"')
+curl -s -b "$TMP/cj" -H "X-WP-Nonce: $RN" -o "$TMP/rec.json" "$BASE/wp-json/ctc/v1/receipts?status=review"
+! grep -q '&amp;' "$TMP/rec.json"; ok $? "panel receipt URLs have no &amp;"
+THUMB=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(next((r['receipts'][-1]['thumb'] for r in d['items'] if r['id']==int(sys.argv[2])),''))" "$TMP/rec.json" "$ID")
+FULL=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(next((r['receipts'][-1]['url'] for r in d['items'] if r['id']==int(sys.argv[2])),''))" "$TMP/rec.json" "$ID")
+PREV=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(next((r['receipts'][-1]['preview'][:23] for r in d['items'] if r['id']==int(sys.argv[2])),''))" "$TMP/rec.json" "$ID")
+[ "$PREV" = "data:image/jpeg;base64," ]; ok $? "receipts list carries the picture inline ($PREV)"
+curl -s -b "$TMP/cj" -o "$TMP/full.bin" -D "$TMP/fh.txt" "$FULL"
+grep -qi 'content-type: image/png' "$TMP/fh.txt" && grep -qi 'cache-control: private' "$TMP/fh.txt" && cmp -s "$TMP/full.bin" "$TMP/r.png"; ok $? "manager streams the original receipt byte for byte"
+curl -s -b "$TMP/cj" -o "$TMP/thumb.bin" -D "$TMP/th.txt" "$THUMB"
+grep -qi 'content-type: image/jpeg' "$TMP/th.txt" && [ "$(head -c 2 "$TMP/thumb.bin" | xxd -p)" = "ffd8" ]; ok $? "manager gets a JPEG thumbnail"
+
+# Several receipt files in one send (panel «چند رسید»).
+wp eval '\CardToCard\Settings::save(array("multi"=>true,"multi_max"=>3,"multi_min"=>0));' >/dev/null
+read -r ID2 URL2 < <(wp eval-file wp-content/plugins/card-to-card/tests/integration/make-order.php | tail -1)
+URL2="${URL2/localhost:8890/localhost:${CTC_PORT:-8890}}"
+curl -s -o "$TMP/m.html" "$URL2"
+grep -q 'name="ctc_file\[\]" multiple' "$TMP/m.html"; ok $? "multiple file input when «چند رسید» is on"
+N2=$(grep -o 'name="ctc_nonce" value="[^"]*"' "$TMP/m.html" | sed 's/.*value="//;s/"//')
+code=$(curl -s -o /dev/null -w '%{http_code}' -F "ctc_nonce=$N2" -F "ctc_ref=1" -F "ctc_f[bank_from]=ملت" -F "ctc_file[]=@$TMP/r.png;type=image/png" -F "ctc_file[]=@$TMP/r.png;type=image/png" "$URL2"); ok $([ "$code" = 303 ]; echo $?) "two receipt files upload 303 ($code)"
+NF=$(wp eval "echo count(\CardToCard\Receipts::files(\CardToCard\Orders::receipts(wc_get_order($ID2))[0] ?? array()));")
+[ "$NF" = 2 ]; ok $? "one receipt with two files stored ($NF)"
+wp eval '\CardToCard\Settings::save(array("multi"=>false));' >/dev/null
+wp eval "wc_get_order($ID2)->delete(true);" >/dev/null
+
 echo "HTTP: $PASS passed, $FAIL failed."
 rm -rf "$TMP"
 [ "$FAIL" = 0 ]

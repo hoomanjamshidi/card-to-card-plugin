@@ -52,6 +52,9 @@ final class Settings {
 			'remind'            => 6,
 			'max_mb'            => 5,
 			'pdf'               => true,
+			'multi'             => false, // Several receipt files in one send (large amounts paid in parts).
+			'multi_max'         => 5,
+			'multi_min'         => 0, // Only for orders of at least this total (0 = every order).
 			'ref'               => 'optional', // hidden | optional | required.
 			'ref_label'         => __( 'شماره پیگیری واریز', 'card-to-card' ),
 			'last4'             => 'optional', // hidden | optional | required.
@@ -81,6 +84,7 @@ final class Settings {
 			'text_reject'       => __( 'رسید قبلی تأیید نشد. لطفاً رسید درست را دوباره بفرستید یا با پشتیبانی در تماس باشید.', 'card-to-card' ),
 			'text_paid'         => __( 'واریز شما تأیید شد و سفارشتان در حال آماده‌سازی است.', 'card-to-card' ),
 			'text_expired'      => __( 'مهلت ارسال رسید تمام شد و سفارش لغو شد. اگر واریز کرده‌اید، با پشتیبانی تماس بگیرید.', 'card-to-card' ),
+			'support_on'        => true, // Support box (chat button + text) on the payment page.
 			'support'           => '',
 			'support_url'       => '',
 			// Look.
@@ -192,6 +196,8 @@ final class Settings {
 			'deadline'       => array( 0, 720 ),
 			'remind'         => array( 0, 240 ),
 			'max_mb'         => array( 1, 20 ),
+			'multi_max'      => array( 2, 10 ),
+			'multi_min'      => array( 0, PHP_INT_MAX ),
 			'min_total'      => array( 0, PHP_INT_MAX ),
 			'max_total'      => array( 0, PHP_INT_MAX ),
 			'keep_approved'  => array( 0, 3650 ),
@@ -310,10 +316,11 @@ final class Settings {
 	}
 
 	/**
-	 * SMS events: on/off, pattern code, variable order and full text (line mode).
+	 * SMS events: on/off, pattern code, variable order, pattern text ({0} {1} …, preview and copy for
+	 * the Melipayamak panel) and full text (line mode).
 	 *
 	 * @param array<string, mixed> $events Raw events.
-	 * @return array<string, array{on:bool, body:string, vars:string, text:string}>
+	 * @return array<string, array{on:bool, body:string, vars:string, pattern:string, text:string}>
 	 */
 	public static function sanitize_events( array $events ): array {
 		$out = array();
@@ -323,10 +330,11 @@ final class Settings {
 				continue;
 			}
 			$out[ $key ] = array(
-				'on'   => filter_var( $conf['on'] ?? false, FILTER_VALIDATE_BOOLEAN ),
-				'body' => Persian::only_digits( (string) ( $conf['body'] ?? '' ) ),
-				'vars' => trim( (string) preg_replace( '/[^a-z0-9_{}\s]/', '', strtolower( (string) ( $conf['vars'] ?? '' ) ) ) ),
-				'text' => sanitize_textarea_field( (string) ( $conf['text'] ?? '' ) ),
+				'on'      => filter_var( $conf['on'] ?? false, FILTER_VALIDATE_BOOLEAN ),
+				'body'    => Persian::only_digits( (string) ( $conf['body'] ?? '' ) ),
+				'vars'    => trim( (string) preg_replace( '/[^a-z0-9_{}\s]/', '', strtolower( (string) ( $conf['vars'] ?? '' ) ) ) ),
+				'pattern' => sanitize_textarea_field( (string) ( $conf['pattern'] ?? '' ) ),
+				'text'    => sanitize_textarea_field( (string) ( $conf['text'] ?? '' ) ),
 			);
 		}
 		return $out;

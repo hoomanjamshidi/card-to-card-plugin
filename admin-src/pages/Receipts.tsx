@@ -2,7 +2,7 @@
  * Receipts inbox: filter by state, see the receipt image, approve (with a stamp animation in the spirit
  * of Tarhak «stamp-approve») or reject with a reason that is texted to the customer.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { CheckmarkBadge01Icon, Cancel01Icon, LinkSquare02Icon, File01Icon, Invoice03Icon, ZoomInAreaIcon, Alert02Icon } from '@hugeicons/core-free-icons';
@@ -17,6 +17,25 @@ import { TextArea } from '../ui/Field';
 type Filter = 'review' | 'awaiting' | 'done' | 'all';
 
 const REASONS = [ 'مبلغ واریزی با مبلغ سفارش یکی نیست', 'تصویر رسید خوانا نیست', 'واریزی با این مشخصات در حساب پیدا نشد', 'رسید مربوط به این سفارش نیست' ];
+
+/**
+ * Receipt picture: the inline preview from the list answer first, then the thumbnail URL, then the
+ * original; a source that fails moves to the next, and when none loads a clear placeholder is shown
+ * instead of a broken-image icon.
+ */
+function Pic( { sources, alt, className }: { sources: string[]; alt: string; className?: string } ) {
+	const list = sources.filter( Boolean );
+	const [ i, setI ] = useState( 0 );
+	if ( i >= list.length ) {
+		return (
+			<span className="flex size-full flex-col items-center justify-center gap-1 p-2 text-center text-[11.5px] text-muted-foreground">
+				<HugeiconsIcon icon={ File01Icon } size={ 24 } />
+				تصویر باز نشد
+			</span>
+		);
+	}
+	return <img src={ list[ i ] } alt={ alt } loading="lazy" decoding="async" onError={ () => setI( ( n ) => n + 1 ) } className={ className } />;
+}
 
 /** The «تأیید شد» ink stamp that lands on the receipt. */
 function Stamp() {
@@ -84,7 +103,7 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 					</div>
 				) : last?.image ? (
 					<button type="button" onClick={ () => onZoom( last.url ) } className="group block size-full" aria-label="بزرگ‌نمایی رسید">
-						<img src={ last.url } alt={ `رسید سفارش ${ row.number }` } loading="lazy" className="size-full object-cover transition-transform duration-500 group-hover:scale-105" />
+						<Pic sources={ [ last.preview, last.thumb, last.url ] } alt={ `رسید سفارش ${ row.number }` } className="size-full object-cover transition-transform duration-500 group-hover:scale-105" />
 						<span className="absolute bottom-2 start-2 flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[11px] text-white backdrop-blur">
 							<HugeiconsIcon icon={ ZoomInAreaIcon } size={ 14 } />
 							بزرگ‌نمایی
@@ -106,6 +125,9 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 						<HugeiconsIcon icon={ Alert02Icon } size={ 14 } />
 						{ danger ? 'مشکوک' : 'هشدار' }
 					</span>
+				) : null }
+				{ ( last?.files?.length ?? 0 ) > 1 && ! last?.deleted ? (
+					<span className="absolute top-2 end-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">{ fa( last!.files.length ) } فایل</span>
 				) : null }
 				<AnimatePresence>{ stamped ? <Stamp /> : null }</AnimatePresence>
 			</div>
@@ -170,6 +192,23 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 						</span>
 					</div>
 				) ) }
+				{ last && ! last.deleted && last.files.length > 1 ? (
+					<div className="flex flex-wrap gap-2">
+						{ last.files.map( ( f, i ) =>
+							f.image ? (
+								<button key={ i } type="button" onClick={ () => onZoom( f.url ) } className="relative size-16 overflow-hidden rounded-xl border border-border bg-muted" aria-label={ `بزرگ‌نمایی فایل ${ fa( i + 1 ) }` }>
+									<Pic sources={ [ f.preview, f.thumb, f.url ] } alt="" className="size-full object-cover" />
+									<span className="absolute bottom-0.5 start-0.5 rounded-full bg-black/55 px-1.5 text-[10px] text-white">{ fa( i + 1 ) }</span>
+								</button>
+							) : (
+								<a key={ i } href={ f.url } target="_blank" rel="noreferrer" className="flex size-16 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-muted text-[10px] text-muted-foreground" title={ f.name }>
+									<HugeiconsIcon icon={ File01Icon } size={ 20 } />
+									{ fa( i + 1 ) }
+								</a>
+							)
+						) }
+					</div>
+				) : null }
 				{ row.cards.length ? <p className="text-[12px] text-muted-foreground">واریز به: { row.cards.map( ( c ) => `${ c.bank } ${ fa( c.number ) }` ).join( '، ' ) }</p> : null }
 				{ row.receipts.length > 1 ? (
 					<p className="text-[12px] text-muted-foreground">
@@ -224,17 +263,44 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 export function Receipts() {
 	const [ filter, setFilter ] = useState<Filter>( 'review' );
 	const [ rows, setRows ] = useState<OrderRow[] | null>( null );
+	const [ error, setError ] = useState( '' );
+	const [ page, setPage ] = useState( 1 );
+	const [ more, setMore ] = useState( false );
+	const [ loadingMore, setLoadingMore ] = useState( false );
 	const [ zoom, setZoom ] = useState( '' );
+	const turn = useRef( 0 );
+	const fetchPage = ( p: number ) => api<{ items: OrderRow[]; more: boolean }>( `receipts?status=${ filter }&page=${ p }` );
 	const load = useCallback( () => {
+		const mine = ++turn.current;
 		setRows( null );
-		api<{ items: OrderRow[] }>( `receipts?status=${ filter }` )
-			.then( ( r ) => setRows( r.items ) )
+		setError( '' );
+		setPage( 1 );
+		fetchPage( 1 )
+			.then( ( r ) => {
+				if ( mine !== turn.current ) return; // Another tab was chosen meanwhile.
+				setRows( r.items );
+				setMore( !! r.more );
+			} )
 			.catch( ( e ) => {
+				if ( mine !== turn.current ) return;
 				setRows( [] );
-				toast( 'error', 'بارگذاری نشد', ( e as Error ).message );
+				setError( ( e as Error ).message );
 			} );
 	}, [ filter ] );
 	useEffect( load, [ load ] );
+	const loadMore = () => {
+		const mine = turn.current;
+		setLoadingMore( true );
+		fetchPage( page + 1 )
+			.then( ( r ) => {
+				if ( mine !== turn.current ) return;
+				setRows( ( prev ) => [ ...( prev ?? [] ), ...r.items.filter( ( n ) => ! ( prev ?? [] ).some( ( o ) => o.id === n.id ) ) ] );
+				setMore( !! r.more );
+				setPage( ( p ) => p + 1 );
+			} )
+			.catch( ( e ) => toast( 'error', 'بارگذاری نشد', ( e as Error ).message ) )
+			.finally( () => setLoadingMore( false ) );
+	};
 
 	const update = ( next: OrderRow ) => setRows( ( prev ) => ( prev ?? [] ).map( ( r ) => ( r.id === next.id ? next : r ) ).filter( ( r ) => filter === 'all' || filter === 'done' || ( filter === 'review' ? r.status === 'ctc-review' : r.status === 'ctc-receipt' ) ) );
 
@@ -256,10 +322,21 @@ export function Receipts() {
 				</button>
 			</div>
 			{ rows === null ? (
-				<div className="grid gap-4">
+				<div className="grid gap-4" aria-busy="true" aria-label="در حال بارگذاری رسیدها">
 					{ [ 0, 1 ].map( ( i ) => (
 						<div key={ i } className="h-56 animate-pulse rounded-[22px] border border-border bg-card" />
 					) ) }
+				</div>
+			) : error ? (
+				<div className="flex flex-col items-center gap-3 rounded-[22px] border border-[#e11d48]/30 bg-[#e11d48]/5 px-6 py-12 text-center" role="alert">
+					<span className="flex size-14 items-center justify-center rounded-3xl bg-[#e11d48]/12 text-[#e11d48]">
+						<HugeiconsIcon icon={ Alert02Icon } size={ 28 } />
+					</span>
+					<p className="text-[15px] font-bold">رسیدها بارگذاری نشد</p>
+					<p className="max-w-md text-[13px] leading-6 text-muted-foreground">{ error }</p>
+					<button type="button" onClick={ load } className="rounded-full bg-primary px-5 py-2 text-[13px] font-bold text-white">
+						تلاش دوباره
+					</button>
 				</div>
 			) : rows.length === 0 ? (
 				<div className="flex flex-col items-center gap-3 rounded-[22px] border border-dashed border-border bg-card px-6 py-16 text-center">
@@ -276,6 +353,11 @@ export function Receipts() {
 							<OrderCard key={ row.id } row={ row } onChange={ update } onZoom={ setZoom } />
 						) ) }
 					</AnimatePresence>
+					{ more ? (
+						<button type="button" disabled={ loadingMore } onClick={ loadMore } className="justify-self-center rounded-full border border-border bg-card px-6 py-2.5 text-[13px] font-bold text-muted-foreground hover:text-foreground disabled:opacity-60">
+							{ loadingMore ? 'در حال بارگذاری…' : 'نمایش بیشتر' }
+						</button>
+					) : null }
 				</motion.div>
 			) }
 			<AnimatePresence>

@@ -90,6 +90,7 @@ final class Plugin {
 	 */
 	public static function flush_count(): void {
 		delete_transient( 'ctc_pending_count' );
+		delete_transient( 'ctc_stats' );
 	}
 
 	/**

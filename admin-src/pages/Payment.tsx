@@ -37,6 +37,17 @@ export function Payment() {
 							<NumberInput value={ s.max_mb } onChange={ ( v ) => set( 'max_mb', v ) } min={ 1 } max={ 20 } unit="مگابایت" />
 						</Row>
 						<SwitchRow label="پذیرش PDF" help="عکس (JPG، PNG، WEBP، HEIC) همیشه پذیرفته می‌شود." checked={ s.pdf } onChange={ ( v ) => set( 'pdf', v ) } />
+						<SwitchRow label="ارسال چند رسید با هم" help="برای مبالغ بالا که مشتری در چند نوبت یا از چند کارت واریز می‌کند: چند تصویر رسید را با یک بار ارسال می‌فرستد و همه کنار هم در پنل و صفحه سفارش نمایش داده می‌شوند." checked={ s.multi } onChange={ ( v ) => set( 'multi', v ) } />
+						{ s.multi ? (
+							<>
+								<Row label="حداکثر تعداد فایل" help="در هر بار ارسال. حجم هر فایل جداگانه بررسی می‌شود.">
+									<NumberInput value={ s.multi_max } onChange={ ( v ) => set( 'multi_max', v ) } min={ 2 } max={ 10 } unit="فایل" />
+								</Row>
+								<Row label="فقط برای سفارش‌های از این مبلغ به بالا" help={ `سفارش‌های کمتر همان یک رسید را می‌فرستند. ۰ = همه سفارش‌ها (${ boot().unit }).` }>
+									<NumberInput value={ s.multi_min } onChange={ ( v ) => set( 'multi_min', v ) } max={ 999999999999 } step={ 1000000 } />
+								</Row>
+							</>
+						) : null }
 					</Section>
 					<Section title="فرم ارسال رسید" icon={ TextFontIcon } desc="عنوان و اجباری بودن فیلدها را عوض کنید یا فیلد دلخواه اضافه کنید. مقادیر کنار رسید در پنل و صفحه سفارش نمایش داده می‌شوند.">
 						<FieldsBuilder />

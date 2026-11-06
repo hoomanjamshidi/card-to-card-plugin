@@ -4,7 +4,7 @@
  *  - 3D tilt + glare on the bank card plates (pointer, respects reduced motion);
  *  - card switcher when several cards are offered;
  *  - receipt picker: name + size, image preview, drag state, big photos / HEIC shrunk to JPEG in the
- *    browser, size check, single busy submit;
+ *    browser, size check, single busy submit; several files with a list when the panel allows it;
  *  - deadline countdown («۲ ساعت و ۱۰ دقیقه مانده», every 30 s, red in the last hour).
  */
 ( function () {
@@ -232,6 +232,121 @@
 	};
 
 	/**
+	 * Several receipt files (panel «چند رسید»): every pick is added to a list (up to the limit), each
+	 * photo shrunk as for one file, with a thumbnail and a remove button. The list is written back to
+	 * the input, so the form still posts a plain multipart «ctc_file[]». Browsers without DataTransfer
+	 * keep the native behaviour (the last pick replaces the selection).
+	 *
+	 * @param {Object} o Form parts and helpers from receipt().
+	 */
+	const multi = ( o ) => {
+		const { input, drop, name, setHint, idle, idleHint, max, limit } = o;
+		const list = o.form.querySelector( '[data-ctc-files]' );
+		const canWrite = !! window.DataTransfer;
+		let picked = [];
+		let urls = [];
+		let turn = 0;
+		const write = () => {
+			if ( ! canWrite ) {
+				return;
+			}
+			try {
+				const dt = new DataTransfer();
+				picked.forEach( ( f ) => dt.items.add( f ) );
+				input.files = dt.files;
+			} catch ( e ) {}
+		};
+		const draw = ( note ) => {
+			urls.forEach( ( u ) => URL.revokeObjectURL( u ) );
+			urls = [];
+			drop.classList.remove( 'is-bad', 'has-file' );
+			input.removeAttribute( 'aria-invalid' );
+			if ( list ) {
+				list.textContent = '';
+				list.hidden = ! picked.length;
+			}
+			picked.forEach( ( file, i ) => {
+				if ( ! list ) {
+					return;
+				}
+				const li = document.createElement( 'li' );
+				li.className = 'ctc-file' + ( max && file.size > max ? ' is-bad' : '' );
+				if ( /^image\/(jpeg|png|webp|gif)$/.test( file.type ) ) {
+					const img = document.createElement( 'img' );
+					const u = URL.createObjectURL( file );
+					urls.push( u );
+					img.src = u;
+					img.alt = '';
+					li.appendChild( img );
+				} else {
+					const ext = document.createElement( 'span' );
+					ext.className = 'ctc-file-ext';
+					ext.textContent = ( file.name.split( '.' ).pop() || '' ).slice( 0, 4 ).toUpperCase();
+					li.appendChild( ext );
+				}
+				const tx = document.createElement( 'span' );
+				tx.className = 'ctc-file-tx';
+				const b = document.createElement( 'b' );
+				b.textContent = file.name;
+				const sm = document.createElement( 'small' );
+				sm.textContent = max && file.size > max ? ( L.tooBig || '%s MB' ).replace( '%s', fa( Math.round( max / 1048576 ) ) ) : size( file.size );
+				tx.append( b, sm );
+				li.appendChild( tx );
+				if ( canWrite ) {
+					const rm = document.createElement( 'button' );
+					rm.type = 'button';
+					rm.className = 'ctc-file-rm';
+					rm.setAttribute( 'aria-label', `${ L.remove || '×' } ${ file.name }` );
+					rm.textContent = '×';
+					rm.addEventListener( 'click', () => {
+						picked.splice( i, 1 );
+						write();
+						draw();
+					} );
+					li.appendChild( rm );
+				}
+				list.appendChild( li );
+			} );
+			if ( ! picked.length ) {
+				name.textContent = idle;
+				setHint( note || idleHint );
+				return;
+			}
+			drop.classList.add( 'has-file' );
+			name.textContent = ( L.nFiles || '%s' ).replace( '%s', fa( picked.length ) );
+			setHint( note || ( picked.length < limit && canWrite ? L.addMore || '' : '' ) );
+		};
+		input.addEventListener( 'change', async () => {
+			const mine = ++turn;
+			const fresh = Array.from( input.files || [] );
+			if ( ! canWrite ) {
+				picked = fresh.slice( 0, limit );
+				draw( fresh.length > limit ? ( L.tooMany || '%s' ).replace( '%s', fa( limit ) ) : '' );
+				return;
+			}
+			if ( ! fresh.length ) {
+				write(); // A cancelled picker emptied the input: keep the list.
+				return;
+			}
+			o.busy( true );
+			const out = [];
+			for ( const file of fresh ) {
+				out.push( await shrink( file, max ) );
+			}
+			if ( mine !== turn ) {
+				return;
+			}
+			const room = Math.max( 0, limit - picked.length );
+			picked = picked.concat( out.slice( 0, room ) );
+			write();
+			o.busy( false );
+			draw( out.length > room ? ( L.tooMany || '%s' ).replace( '%s', fa( limit ) ) : '' );
+		} );
+		[ 'dragenter', 'dragover' ].forEach( ( t ) => input.addEventListener( t, () => drop.classList.add( 'is-over' ) ) );
+		[ 'dragleave', 'drop' ].forEach( ( t ) => input.addEventListener( t, () => drop.classList.remove( 'is-over' ) ) );
+	};
+
+	/**
 	 * Receipt form.
 	 *
 	 * @param {HTMLFormElement} form Form.
@@ -245,6 +360,7 @@
 		const submit = form.querySelector( '.ctc-submit' );
 		const label = submit && submit.querySelector( 'span' );
 		const max = Number( form.dataset.max ) || 0;
+		const limit = Number( form.dataset.files ) || 1;
 		const idle = name ? name.textContent : '';
 		const idleHint = hint ? hint.textContent : '';
 		const idleLabel = label ? label.textContent : '';
@@ -297,6 +413,39 @@
 				preview.hidden = false;
 			}
 		};
+		const sendingUi = () => {
+			if ( ! submit ) {
+				return;
+			}
+			submit.setAttribute( 'aria-busy', 'true' );
+			if ( label ) {
+				label.textContent = L.sending || '…';
+			}
+			if ( L.wait && ! form.querySelector( '.ctc-wait' ) ) {
+				const note = document.createElement( 'p' );
+				note.className = 'ctc-wait';
+				note.setAttribute( 'role', 'status' );
+				note.textContent = L.wait;
+				submit.after( note );
+			}
+		};
+		// Back button after a submit (page from the back-forward cache): ready to send again.
+		const pageshow = () => window.addEventListener( 'pageshow', ( event ) => {
+			if ( ! event.persisted ) {
+				return;
+			}
+			sending = false;
+			if ( submit ) {
+				submit.removeAttribute( 'aria-busy' );
+				if ( label ) {
+					label.textContent = idleLabel;
+				}
+			}
+			const note = form.querySelector( '.ctc-wait' );
+			if ( note ) {
+				note.remove();
+			}
+		} );
 		const busy = ( on ) => {
 			preparing = on;
 			drop.classList.toggle( 'is-busy', on );
@@ -308,6 +457,24 @@
 				submit.disabled = on;
 			}
 		};
+		if ( limit > 1 ) {
+			multi( { form, input, drop, name, setHint, idle, idleHint, max, limit, busy } );
+			form.addEventListener( 'submit', ( event ) => {
+				const files = Array.from( input.files || [] );
+				if ( sending || preparing || ! files.length || files.length > limit || ( max && files.some( ( f ) => f.size > max ) ) ) {
+					event.preventDefault();
+					if ( ! files.length && ! preparing ) {
+						bad( L.pick || '' );
+						input.focus();
+					}
+					return;
+				}
+				sending = true;
+				sendingUi();
+			} );
+			pageshow();
+			return;
+		}
 		input.addEventListener( 'change', async () => {
 			const mine = ++turn;
 			const file = input.files && input.files[ 0 ];
@@ -342,37 +509,9 @@
 			}
 			// One submit only: a second tap would post the same receipt again.
 			sending = true;
-			if ( submit ) {
-				submit.setAttribute( 'aria-busy', 'true' );
-				if ( label ) {
-					label.textContent = L.sending || '…';
-				}
-				if ( L.wait && ! form.querySelector( '.ctc-wait' ) ) {
-					const note = document.createElement( 'p' );
-					note.className = 'ctc-wait';
-					note.setAttribute( 'role', 'status' );
-					note.textContent = L.wait;
-					submit.after( note );
-				}
-			}
+			sendingUi();
 		} );
-		// Back button after a submit (page from the back-forward cache): ready to send again.
-		window.addEventListener( 'pageshow', ( event ) => {
-			if ( ! event.persisted ) {
-				return;
-			}
-			sending = false;
-			if ( submit ) {
-				submit.removeAttribute( 'aria-busy' );
-				if ( label ) {
-					label.textContent = idleLabel;
-				}
-			}
-			const note = form.querySelector( '.ctc-wait' );
-			if ( note ) {
-				note.remove();
-			}
-		} );
+		pageshow();
 	};
 
 	/**
