@@ -22,6 +22,50 @@ final class Receipts {
 		add_action( 'admin_post_ctc_file', array( __CLASS__, 'stream' ) );
 		add_action( 'ctc_cleanup', array( __CLASS__, 'run_cleanup' ) );
 		add_action( 'action_scheduler_init', array( __CLASS__, 'schedule_cleanup' ) );
+		add_action( 'ctc_previews', array( __CLASS__, 'make_previews' ) );
+	}
+
+	/**
+	 * Queue the small copies of some orders' receipts in the background (Action Scheduler), so the
+	 * receipts list never waits on resizing photos (older receipts, uploaded before 1.2.0).
+	 *
+	 * @param int[] $order_ids Orders.
+	 */
+	public static function queue_previews( array $order_ids ): void {
+		$ids = array_values( array_unique( array_filter( array_map( 'absint', $order_ids ) ) ) );
+		if ( ! $ids ) {
+			return;
+		}
+		sort( $ids );
+		if ( ! function_exists( 'as_enqueue_async_action' ) || ! function_exists( 'as_has_scheduled_action' ) ) {
+			return; // The thumbnail URL still works; it makes the copy on first view.
+		}
+		if ( ! as_has_scheduled_action( 'ctc_previews', array( $ids ), Orders::GROUP ) ) {
+			as_enqueue_async_action( 'ctc_previews', array( $ids ), Orders::GROUP );
+		}
+	}
+
+	/**
+	 * Background job: make the «thumb» and «mini» copies of every receipt file of these orders.
+	 *
+	 * @param mixed $order_ids Orders.
+	 */
+	public static function make_previews( $order_ids ): void {
+		foreach ( array_slice( (array) $order_ids, 0, 50 ) as $id ) {
+			$order = wc_get_order( absint( $id ) );
+			if ( ! $order instanceof \WC_Order ) {
+				continue;
+			}
+			foreach ( Orders::receipts( $order ) as $receipt ) {
+				if ( ! empty( $receipt['deleted'] ) ) {
+					continue;
+				}
+				foreach ( self::files( $receipt ) as $file ) {
+					self::thumb( $file, 'mini' );
+					self::thumb( $file );
+				}
+			}
+		}
 	}
 
 	/**
@@ -163,6 +207,12 @@ final class Receipts {
 	 * @return string Absolute path, no trailing slash.
 	 */
 	public static function dir(): string {
+		// Checked once per request: a list of receipts asks for it dozens of times, and on shared
+		// hosting (network disks) every file check costs.
+		static $ready = '';
+		if ( '' !== $ready && is_dir( $ready ) ) {
+			return $ready;
+		}
 		$dir = wp_upload_dir( null, false )['basedir'] . '/ctc-receipts';
 		if ( ! is_dir( $dir ) ) {
 			wp_mkdir_p( $dir );
@@ -175,6 +225,7 @@ final class Receipts {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 			file_put_contents( $dir . '/index.php', "<?php\n// Silence is golden.\n" );
 		}
+		$ready = $dir;
 		return $dir;
 	}
 

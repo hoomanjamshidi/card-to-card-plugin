@@ -955,6 +955,27 @@ ob_start();
 \CardToCard\Admin\Order_Box::render( $mo );
 $box = (string) ob_get_clean();
 ctc_ok( 2 === substr_count( $box, 's=thumb' ) && ! str_contains( $box, '&amp;amp;' ), 'order screen shows a thumbnail per file' );
+// Older receipts without small copies: the list never resizes, it queues a background job.
+$f3 = $png( 'multi-3.png', 1400, 1800 );
+[ $mo2 ] = ctc_new_order( $pid );
+Receipts::attach( wc_get_order( $mo2->get_id() ), $f3, '', '' );
+$t0   = microtime( true );
+$row3 = Controller::order_row( wc_get_order( $mo2->get_id() ), true );
+ctc_ok( '' === $row3['receipts'][0]['preview'] && ! empty( $row3['_missing'] ) && ! file_exists( $rdir . '/2026/11/multi-3-mini.jpg' ), 'list row does not resize an older receipt; marks it for the background job' );
+$req = new WP_REST_Request( 'GET', '/ctc/v1/receipts' );
+$req->set_param( 'status', 'review' );
+$res = rest_do_request( $req );
+$lst = $res->get_data();
+ctc_ok( isset( $lst['timing']['boot'], $lst['timing']['query'], $lst['timing']['rows'] ) && str_contains( (string) ( $res->get_headers()['Server-Timing'] ?? '' ), 'rows;dur=' ), 'receipts list reports where its time went', $lst['timing'] ?? null );
+ctc_ok( ! array_filter( $lst['items'], static fn( $r ) => array_key_exists( '_missing', $r ) ), 'internal flag not sent to the panel' );
+ctc_ok( as_has_scheduled_action( 'ctc_previews', null, Orders::GROUP ), 'background job queued for the missing small copies' );
+Receipts::make_previews( array( $mo2->get_id() ) );
+ctc_ok( file_exists( $rdir . '/2026/11/multi-3-mini.jpg' ) && file_exists( $rdir . '/2026/11/multi-3-thumb.jpg' ), 'background job made both small copies' );
+ctc_ok( str_starts_with( Controller::order_row( wc_get_order( $mo2->get_id() ), true )['receipts'][0]['preview'], 'data:image/jpeg' ), 'next list shows it inline' );
+as_unschedule_all_actions( 'ctc_previews', null, Orders::GROUP );
+Receipts::delete_files( wc_get_order( $mo2->get_id() ) );
+wc_get_order( $mo2->get_id() )->delete( true );
+
 Receipts::delete_files( $mo );
 ctc_ok( ! file_exists( $rdir . '/2026/11/multi-1.png' ) && ! file_exists( $rdir . '/2026/11/multi-2.png' ) && ! file_exists( $thumb ) && ! file_exists( $rdir . '/2026/11/multi-1-mini.jpg' ), 'every file and its small copies deleted with the receipt' );
 
