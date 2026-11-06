@@ -13,10 +13,20 @@ $ctc_settings = get_option( 'ctc_settings', array() );
 if ( ! is_array( $ctc_settings ) || empty( $ctc_settings['cleanup'] ) ) {
 	return;
 }
-foreach ( array( 'ctc_settings', 'ctc_sms_log', 'ctc_rotate', 'ctc_rewrite', 'woocommerce_card_to_card_settings' ) as $ctc_option ) {
+$ctc_page = (int) get_option( 'ctc_page_id', 0 );
+if ( $ctc_page && 'page' === get_post_type( $ctc_page ) ) {
+	wp_delete_post( $ctc_page, true );
+}
+delete_option( 'ctc_page_id' );
+
+foreach ( array( 'ctc_settings', 'ctc_sms_log', 'ctc_rotate', 'ctc_rewrite', 'ctc_card_usage', 'ctc_fp_db', 'woocommerce_card_to_card_settings' ) as $ctc_option ) {
 	delete_option( $ctc_option );
 }
 delete_transient( 'ctc_pending_count' );
+
+// Receipt fingerprints (fraud module).
+global $wpdb;
+$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}ctc_fingerprints" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange -- removing our own table.
 
 $ctc_dir = wp_upload_dir( null, false )['basedir'] . '/ctc-receipts';
 if ( is_dir( $ctc_dir ) ) {

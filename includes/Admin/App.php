@@ -95,7 +95,7 @@ final class App {
 		$ver = CTC_VERSION . '-' . (string) @filemtime( CTC_DIR . 'assets/admin/app.js' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- missing build is handled below.
 		wp_enqueue_style( 'ctc-admin', CTC_URL . 'assets/admin/app.css', array(), $ver );
 		wp_add_inline_style( 'ctc-admin', '@font-face{font-family:"CTC Vazirmatn";src:url("' . esc_url_raw( CTC_URL . 'assets/fonts/Vazirmatn-Variable.woff2' ) . '") format("woff2");font-weight:100 900;font-display:swap;}' );
-		wp_enqueue_style( 'ctc-card', CTC_URL . 'assets/css/payment.css', array(), CTC_VERSION );
+		wp_enqueue_style( 'ctc-card', CTC_URL . 'assets/css/payment.css', array(), CTC_VERSION . '-' . (string) @filemtime( CTC_DIR . 'assets/css/payment.css' ) ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		wp_enqueue_script( 'ctc-admin', CTC_URL . 'assets/admin/app.js', array(), $ver, true );
 		wp_localize_script( 'ctc-admin', 'ctcBoot', self::boot() );
 	}
@@ -130,21 +130,24 @@ final class App {
 			);
 		}
 		return array(
-			'rest'      => esc_url_raw( rest_url( 'ctc/v1/' ) ),
-			'nonce'     => wp_create_nonce( 'wp_rest' ),
-			'version'   => CTC_VERSION,
-			'settings'  => self::settings_for_app(),
-			'defaults'  => Settings::defaults(),
-			'banks'     => $banks,
-			'events'    => $events,
-			'tokens'    => Events::token_labels(),
-			'unit'      => Util::unit(),
-			'home'      => home_url( '/' ),
-			'site'      => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
-			'wcUrl'     => admin_url( 'admin.php?page=wc-settings&tab=checkout&section=' . Gateway::ID ),
-			'ordersUrl' => admin_url( 'admin.php?page=wc-orders' ),
-			'pretty'    => (bool) get_option( 'permalink_structure' ),
-			'blocks'    => class_exists( '\Automattic\WooCommerce\Blocks\Utils\CartCheckoutUtils' ) && \Automattic\WooCommerce\Blocks\Utils\CartCheckoutUtils::is_checkout_block_default(),
+			'rest'        => esc_url_raw( rest_url( 'ctc/v1/' ) ),
+			'nonce'       => wp_create_nonce( 'wp_rest' ),
+			'version'     => CTC_VERSION,
+			'settings'    => self::settings_for_app(),
+			'defaults'    => Settings::defaults(),
+			'banks'       => $banks,
+			'events'      => $events,
+			'modules'     => \CardToCard\Modules\Registry::meta(),
+			'themeColors' => \CardToCard\Support\Colors::theme(),
+			'themeName'   => wp_get_theme()->get( 'Name' ),
+			'tokens'      => Events::token_labels(),
+			'unit'        => Util::unit(),
+			'home'        => home_url( '/' ),
+			'site'        => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+			'wcUrl'       => admin_url( 'admin.php?page=wc-settings&tab=checkout&section=' . Gateway::ID ),
+			'ordersUrl'   => admin_url( 'admin.php?page=wc-orders' ),
+			'pretty'      => (bool) get_option( 'permalink_structure' ),
+			'blocks'      => class_exists( '\Automattic\WooCommerce\Blocks\Utils\CartCheckoutUtils' ) && \Automattic\WooCommerce\Blocks\Utils\CartCheckoutUtils::is_checkout_block_default(),
 		);
 	}
 

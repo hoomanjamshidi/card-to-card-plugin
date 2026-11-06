@@ -188,16 +188,16 @@ final class Receipts {
 	 * @return array{path:string, name:string, type:string, size:int}|\WP_Error
 	 */
 	public static function store( array $file ) {
-		$max_mb = max( 1, (int) Settings::get( 'max_mb', 5 ) );
-		if ( UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
+		$error = (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE );
+		if ( UPLOAD_ERR_NO_FILE === $error ) {
 			return new \WP_Error( 'file', __( 'تصویر رسید را انتخاب کنید.', 'card-to-card' ) );
 		}
-		if ( UPLOAD_ERR_OK !== (int) $file['error'] || ! is_uploaded_file( (string) $file['tmp_name'] ) ) {
-			return new \WP_Error( 'file', __( 'فایل کامل بارگذاری نشد؛ دوباره امتحان کنید.', 'card-to-card' ) );
+		// Over the server's upload_max_filesize / the form's MAX_FILE_SIZE: a size problem, not a broken upload.
+		if ( in_array( $error, array( UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE ), true ) || ( UPLOAD_ERR_OK === $error && (int) $file['size'] > Payment_Page::max_bytes() ) ) {
+			return new \WP_Error( 'file', Payment_Page::too_big_message() );
 		}
-		if ( (int) $file['size'] > $max_mb * MB_IN_BYTES ) {
-			/* translators: %s: size in MB */
-			return new \WP_Error( 'file', sprintf( __( 'حجم فایل حداکثر %s مگابایت باشد.', 'card-to-card' ), Support\Persian::digits( (string) $max_mb ) ) );
+		if ( UPLOAD_ERR_OK !== $error || ! is_uploaded_file( (string) $file['tmp_name'] ) ) {
+			return new \WP_Error( 'file', __( 'فایل کامل بارگذاری نشد؛ دوباره امتحان کنید.', 'card-to-card' ) );
 		}
 		$check = wp_check_filetype_and_ext( (string) $file['tmp_name'], (string) $file['name'], self::mimes() );
 		if ( empty( $check['ext'] ) || empty( $check['type'] ) ) {
@@ -230,6 +230,18 @@ final class Receipts {
 			'type' => (string) $check['type'],
 			'size' => (int) $file['size'],
 		);
+	}
+
+	/**
+	 * Delete a stored file that will not be attached (refused by a check).
+	 *
+	 * @param array<string, mixed> $stored Result of store().
+	 */
+	public static function discard( array $stored ): void {
+		$path = self::path( $stored );
+		if ( '' !== $path && is_file( $path ) ) {
+			wp_delete_file( $path );
+		}
 	}
 
 	/**

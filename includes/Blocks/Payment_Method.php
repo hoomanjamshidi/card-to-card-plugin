@@ -51,7 +51,7 @@ final class Payment_Method extends AbstractPaymentMethodType {
 		wp_register_script(
 			'ctc-blocks',
 			CTC_URL . 'assets/js/blocks.js',
-			array( 'wc-blocks-registry', 'wc-settings', 'wp-element', 'wp-html-entities' ),
+			array( 'wc-blocks-registry', 'wc-settings', 'wp-element', 'wp-html-entities', 'wp-data' ),
 			CTC_VERSION,
 			true
 		);
@@ -65,7 +65,9 @@ final class Payment_Method extends AbstractPaymentMethodType {
 	 */
 	public function get_payment_method_data(): array {
 		return array(
-			'title'       => (string) Settings::get( 'title' ),
+			'title'       => (string) apply_filters( 'ctc_gateway_title', (string) Settings::get( 'title' ) ),
+			// Totals depend on the chosen method (fee / discount module): refresh the cart when it changes.
+			'refresh'     => (bool) apply_filters( 'ctc_refresh_on_method_change', false ),
 			'description' => (string) Settings::get( 'description' ),
 			'button'      => (string) Settings::get( 'button' ),
 			'supports'    => array( 'products' ),

@@ -30,6 +30,23 @@
 		);
 	};
 
+	// Discount / fee module: the totals depend on the chosen method, so tell the Store API on change.
+	if ( data.refresh && window.wp.data ) {
+		let last = null;
+		window.wp.data.subscribe( () => {
+			const store = window.wp.data.select( 'wc/store/payment' );
+			const method = store && store.getActivePaymentMethod ? store.getActivePaymentMethod() : '';
+			if ( ! method || method === last ) return;
+			const was = last;
+			last = method;
+			// Only a change to or from card to card moves the totals.
+			const checkout = window.wc.blocksCheckout;
+			if ( ( method === 'card_to_card' || was === 'card_to_card' ) && checkout && checkout.extensionCartUpdate ) {
+				checkout.extensionCartUpdate( { namespace: 'ctc-method', data: { method } } );
+			}
+		} );
+	}
+
 	registerPaymentMethod( {
 		name: 'card_to_card',
 		label: el( Label ),

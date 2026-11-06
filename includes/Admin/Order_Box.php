@@ -9,6 +9,8 @@
 
 namespace CardToCard\Admin;
 
+use CardToCard\Modules\Fraud;
+use CardToCard\Modules\Registry;
 use CardToCard\Orders;
 use CardToCard\Receipts;
 use CardToCard\Settings;
@@ -83,6 +85,13 @@ final class Order_Box {
 			$url   = Receipts::file_url( $order->get_id(), (int) $i );
 			$state = (string) ( $r['state'] ?? 'pending' );
 			echo '<div class="ctc-r is-' . esc_attr( $state ) . '">';
+			foreach ( Fraud::present( $r ) as $flag ) {
+				echo '<p class="ctc-flag is-' . esc_attr( $flag['level'] ) . '">' . ( 'danger' === $flag['level'] ? '⚠️ ' . esc_html__( 'مشکوک:', 'card-to-card' ) . ' ' : 'ℹ️ ' ) . esc_html( $flag['text'] );
+				if ( '' !== $flag['edit'] ) {
+					echo ' <a href="' . esc_url( $flag['edit'] ) . '" target="_blank" rel="noopener">' . esc_html__( 'دیدن سفارش', 'card-to-card' ) . ' ↗</a>';
+				}
+				echo '</p>';
+			}
 			if ( ! empty( $r['deleted'] ) ) {
 				/* translators: %s: Jalali date */
 				echo '<p class="ctc-muted">' . esc_html( sprintf( __( 'فایل رسید طبق تنظیمات نگهداری در %s حذف شد.', 'card-to-card' ), Util::jdate( 'j F Y', (int) $r['deleted'] ) ) ) . '</p>';
@@ -110,7 +119,12 @@ final class Order_Box {
 			echo '</div>';
 		}
 		if ( $order->has_status( array( Orders::AWAITING, Orders::REVIEW, 'on-hold' ) ) ) {
-			echo '<p><button type="submit" class="button button-primary ctc-approve" name="ctc_do" value="approve">' . esc_html__( 'تأیید واریز و شروع سفارش', 'card-to-card' ) . '</button></p>';
+			$latest  = $receipts ? (array) end( $receipts ) : array();
+			$fraud   = Registry::get( 'fraud' );
+			$confirm = $fraud && $fraud->conf( 'confirm' ) && Fraud::is_danger( $latest )
+				? ' onclick="return window.confirm(' . esc_attr( (string) wp_json_encode( __( 'این رسید مشکوک به تکراری بودن است. با وجود هشدار تأیید می‌کنید؟', 'card-to-card' ) ) ) . ')"'
+				: '';
+			echo '<p><button type="submit" class="button button-primary ctc-approve" name="ctc_do" value="approve"' . $confirm . '>' . esc_html__( 'تأیید واریز و شروع سفارش', 'card-to-card' ) . '</button></p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $confirm is built from esc_attr().
 		}
 		if ( $order->has_status( Orders::REVIEW ) ) {
 			echo '<p><label for="ctc-reason">' . esc_html__( 'دلیل رد (برای مشتری پیامک می‌شود)', 'card-to-card' ) . '</label>';
@@ -187,6 +201,7 @@ final class Order_Box {
 			. '.ctc-r{margin:0 0 12px;padding:8px;border:1px solid #dcdcde;border-radius:8px}'
 			. '.ctc-r.is-pending{border-color:#dba617;background:#fffbea}.ctc-r.is-approved{border-color:#68de7c}.ctc-r.is-rejected{opacity:.7}'
 			. '.ctc-r img{display:block;max-width:100%;height:auto;border-radius:6px}.ctc-r p{margin:6px 0 0}'
+			. '.ctc-flag{padding:6px 8px;border-radius:6px;font-size:12px;line-height:1.7}.ctc-flag.is-danger{background:#fde8e8;color:#9b1c1c}.ctc-flag.is-warn{background:#fff7e0;color:#7a5200}'
 			. '.ctc-adm-card{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,var(--c1),var(--c2));color:var(--ink)}'
 			. '.ctc-adm-card b{font-size:14px;letter-spacing:1px;text-align:left}.ctc-muted{color:#646970}'
 			. '</style>';

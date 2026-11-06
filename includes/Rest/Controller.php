@@ -15,6 +15,7 @@ namespace CardToCard\Rest;
 
 use CardToCard\Admin\App;
 use CardToCard\Gateway;
+use CardToCard\Modules\Fraud;
 use CardToCard\Orders;
 use CardToCard\Receipts;
 use CardToCard\Settings;
@@ -246,6 +247,7 @@ final class Controller {
 				'reason'  => (string) ( $r['reason'] ?? '' ),
 				'fields'  => (array) ( $r['fields'] ?? array() ),
 				'deleted' => ! empty( $r['deleted'] ),
+				'flags'   => Fraud::present( $r ),
 			);
 		}
 		$created = $order->get_date_created();

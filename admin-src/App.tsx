@@ -15,6 +15,7 @@ import {
 	Message01Icon,
 	SecurityCheckIcon,
 	PackageIcon,
+	PuzzleIcon,
 	Moon02Icon,
 	Sun03Icon,
 } from '@hugeicons/core-free-icons';
@@ -34,6 +35,7 @@ import { Texts } from './pages/Texts';
 import { Appearance } from './pages/Appearance';
 import { Sms } from './pages/Sms';
 import { Advanced } from './pages/Advanced';
+import { Modules } from './pages/Modules';
 
 type Tab = { id: string; label: string; icon: IconSvgElement; hint: string };
 
@@ -46,6 +48,7 @@ const TABS: Tab[] = [
 	{ id: 'texts', label: 'متن‌ها', icon: TextFontIcon, hint: 'درگاه و صفحه پرداخت' },
 	{ id: 'look', label: 'ظاهر', icon: PaintBoardIcon, hint: 'رنگ، چیدمان، فونت' },
 	{ id: 'sms', label: 'پیامک', icon: Message01Icon, hint: 'ملی‌پیامک' },
+	{ id: 'modules', label: 'افزونه‌ها', icon: PuzzleIcon, hint: 'تخفیف، سقف کارت، شرط‌ها، ضدتقلب' },
 	{ id: 'advanced', label: 'پیشرفته', icon: SecurityCheckIcon, hint: 'امنیت و داده‌ها' },
 ];
 
@@ -147,7 +150,7 @@ export function App() {
 		}
 	};
 
-	const Page: React.ComponentType<{ go: ( tab: string ) => void }> = ( { dashboard: Dashboard, receipts: Receipts, cards: Cards, payment: Payment, orders: Orders, texts: Texts, look: Appearance, sms: Sms, advanced: Advanced } as Record<string, React.ComponentType<{ go: ( tab: string ) => void }>> )[ tab ] ?? Dashboard;
+	const Page: React.ComponentType<{ go: ( tab: string ) => void }> = ( { dashboard: Dashboard, receipts: Receipts, cards: Cards, payment: Payment, orders: Orders, texts: Texts, look: Appearance, sms: Sms, modules: Modules, advanced: Advanced } as Record<string, React.ComponentType<{ go: ( tab: string ) => void }>> )[ tab ] ?? Dashboard;
 
 	return (
 		<StoreContext.Provider value={ store }>

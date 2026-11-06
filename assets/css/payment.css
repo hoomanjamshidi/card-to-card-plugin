@@ -7,6 +7,7 @@
 .ctc {
 	--ctc-font: inherit;
 	--ctc-accent: #4f46e5;
+	--ctc-on-accent: #fff;
 	--ctc-bg: transparent;
 	--ctc-surface: #ffffff;
 	--ctc-soft: #f4f5fa;
@@ -200,7 +201,7 @@
 
 .ctc-steps-bar .is-now span {
 	background: var(--ctc-accent);
-	color: #fff;
+	color: var(--ctc-on-accent);
 }
 
 /* ---------- Hero ---------- */
@@ -227,7 +228,7 @@
 	height: 60px;
 	border-radius: 20px;
 	background: linear-gradient(140deg, var(--ctc-accent), color-mix(in srgb, var(--ctc-accent) 60%, #000));
-	color: #fff;
+	color: var(--ctc-on-accent);
 	box-shadow: 0 12px 24px -12px var(--ctc-accent);
 }
 
@@ -1104,7 +1105,7 @@
 	border: 0;
 	border-radius: 16px;
 	background: linear-gradient(140deg, var(--ctc-accent), color-mix(in srgb, var(--ctc-accent) 72%, #000));
-	color: #fff;
+	color: var(--ctc-on-accent);
 	font-size: 15px;
 	font-weight: 800;
 	line-height: 1.4;
@@ -1115,7 +1116,7 @@
 }
 
 .ctc .ctc-btn:hover {
-	color: #fff;
+	color: var(--ctc-on-accent);
 	filter: brightness(1.06);
 	transform: translateY(-1px);
 }
@@ -1629,4 +1630,298 @@
 	.ctc-drop {
 		flex-wrap: wrap;
 	}
+}
+
+/* ---------- Quick «ارسال رسید» jump in the hero ---------- */
+.ctc .ctc-hero-cta {
+	grid-column: 1 / -1;
+	justify-self: start;
+	min-height: 46px;
+	font-size: 14px;
+}
+
+.ctc-form {
+	/* Keeps the form's title clear of sticky theme headers after the jump. */
+	scroll-margin-top: 72px;
+}
+
+@media (max-width: 760px) {
+	.ctc .ctc-hero-cta {
+		justify-self: stretch;
+	}
+}
+
+/* ---------- Amount in rial (shops priced in toman; many banking apps ask for rial) ---------- */
+.ctc .ctc-rial {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin: 6px 0 0;
+	padding: 3px 10px;
+	border: 0;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--ctc-accent) 12%, transparent);
+	color: var(--ctc-ink);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1.6;
+	text-shadow: none;
+	cursor: pointer;
+	transition: background .2s, color .2s;
+}
+
+.ctc .ctc-rial .ctc-ic {
+	width: 14px;
+	height: 14px;
+	color: var(--ctc-accent);
+}
+
+.ctc .ctc-rial i {
+	color: var(--ctc-accent);
+	font-style: normal;
+}
+
+.ctc .ctc-rial:hover {
+	background: color-mix(in srgb, var(--ctc-accent) 20%, transparent);
+}
+
+.ctc .ctc-rial.is-done,
+.ctc .ctc-rial.is-done .ctc-ic,
+.ctc .ctc-rial.is-done i {
+	background: var(--ctc-ok);
+	color: #fff;
+}
+
+.ctc .ctc-rial:focus-visible {
+	outline: 2px solid var(--ctc-accent);
+	outline-offset: 2px;
+}
+
+/* ---------- Facts: copy button on the label row, the value gets the full width ----------
+ * Beside the value it squeezed the IBAN to three lines and the amount away from its unit, on phones
+ * and in the narrow column next to the card on desktop. */
+.ctc .ctc-fact dt {
+	grid-row: 1;
+	align-self: center;
+}
+
+.ctc .ctc-fact dd {
+	grid-column: 1 / -1;
+	grid-row: 2;
+}
+
+.ctc .ctc-fact .ctc-copy {
+	grid-column: 2;
+	grid-row: 1;
+	padding: 4px 10px;
+}
+
+.ctc .ctc-rial span {
+	white-space: nowrap;
+}
+
+/* ---------- Deadline: last hour in red ---------- */
+.ctc-deadline span {
+	/* «۲ ساعت و ۱۰ دقیقه مانده» drops to its own line instead of squeezing the date word by word. */
+	flex: 1 1 200px;
+}
+
+.ctc-deadline.is-urgent {
+	background: var(--ctc-bad-bg);
+}
+
+.ctc-deadline.is-urgent .ctc-ic,
+.ctc-deadline.is-urgent b {
+	color: var(--ctc-bad);
+}
+
+.ctc-deadline.is-urgent b {
+	background: color-mix(in srgb, var(--ctc-bad) 12%, transparent);
+}
+
+/* ---------- Receipt picker states ---------- */
+.ctc-drop.has-file .ctc-drop-ic {
+	color: var(--ctc-ok);
+}
+
+/* A picked file: one line (phone names like «Screenshot_20261106-150455_…» took four). */
+.ctc-drop.has-file .ctc-drop-tx b {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
+}
+
+/* Shrinking a big photo before upload. */
+.ctc-drop.is-busy {
+	cursor: progress;
+}
+
+.ctc-drop.is-busy .ctc-drop-ic {
+	animation: ctc-pulse .8s ease-in-out infinite alternate;
+}
+
+@keyframes ctc-pulse {
+	to {
+		opacity: .35;
+	}
+}
+
+.ctc .ctc-submit:disabled {
+	opacity: .6;
+	cursor: progress;
+}
+
+.ctc-wait {
+	margin: -4px 0 0;
+	color: var(--ctc-muted);
+	font-size: 12.5px;
+	text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ctc-drop.is-busy .ctc-drop-ic {
+		animation: none;
+	}
+}
+
+/* ---------- Phones: card and amount sooner, less scrolling ---------- */
+@media (max-width: 760px) {
+	/* All the cards stay visible: a scrolling tab strip hid the third card. */
+	.ctc-switch {
+		flex-wrap: wrap;
+		overflow: visible;
+		border-radius: 16px;
+	}
+}
+
+@media (max-width: 600px) {
+	/* Steps: numbers only, with the current step's name (was four boxes with wrapped labels). */
+	.ctc-steps-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.ctc-steps-bar li {
+		flex: none;
+		flex-direction: row;
+		gap: 8px;
+		padding: 4px;
+		border-radius: 999px;
+		font-size: 0;
+		white-space: nowrap;
+	}
+
+	.ctc-steps-bar li.is-now {
+		flex: 1 1 auto;
+		min-width: 0;
+		padding-inline-end: 14px;
+		font-size: 12px;
+	}
+
+	.ctc-steps-bar li span {
+		width: 24px;
+		height: 24px;
+		font-size: 12px;
+	}
+
+	/* Awaiting payment: no big icon beside the text, so the lead takes the full width. */
+	.ctc-page.is-pay .ctc-hero {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.ctc-page.is-pay .ctc-hero-ic {
+		display: none;
+	}
+
+	.ctc-code {
+		padding: 6px 12px;
+	}
+
+}
+
+/* ---------- Form: the shop's colour wins over theme form styles ----------
+ * Themes style inputs, selects and buttons with their own colours (focus backgrounds, borders,
+ * outlines, sometimes !important). Inside .ctc the receipt form always uses the panel's accent:
+ * focus ring, caret, text selection and the browser's own controls (date picker, select list,
+ * checkboxes) via accent-color. */
+.ctc {
+	accent-color: var(--ctc-accent);
+	caret-color: var(--ctc-accent);
+}
+
+.ctc ::selection {
+	background: color-mix(in srgb, var(--ctc-accent) 24%, transparent);
+	color: inherit;
+}
+
+.ctc .ctc-f :is(input, select, textarea) {
+	border: 0 !important;
+	border-radius: var(--ctc-r-md) !important;
+	background-color: var(--ctc-soft) !important;
+	box-shadow: inset 0 0 0 1px var(--ctc-line) !important;
+	color: var(--ctc-ink) !important;
+	outline: none !important;
+	transition: box-shadow .2s, background-color .2s;
+}
+
+.ctc .ctc-f :is(input, select, textarea):hover {
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ctc-accent) 45%, var(--ctc-line)) !important;
+}
+
+.ctc .ctc-f :is(input, select, textarea):focus,
+.ctc .ctc-f :is(input, select, textarea):focus-visible {
+	background-color: var(--ctc-surface) !important;
+	box-shadow: inset 0 0 0 2px var(--ctc-accent), 0 0 0 4px color-mix(in srgb, var(--ctc-accent) 16%, transparent) !important;
+}
+
+.ctc .ctc-f :is(input, select, textarea)[aria-invalid="true"] {
+	box-shadow: inset 0 0 0 2px var(--ctc-bad) !important;
+}
+
+.ctc .ctc-f select {
+	-webkit-appearance: none;
+	appearance: none;
+	padding-inline-end: 40px;
+	background-image: linear-gradient(45deg, transparent 50%, var(--ctc-accent) 50%), linear-gradient(135deg, var(--ctc-accent) 50%, transparent 50%) !important;
+	background-position: 16px calc(50% + 1px), 21px calc(50% + 1px) !important;
+	background-size: 5px 5px, 5px 5px !important;
+	background-repeat: no-repeat !important;
+}
+
+.ctc .ctc-f select option:checked {
+	background: var(--ctc-accent);
+	color: var(--ctc-on-accent);
+}
+
+.ctc .ctc-f input::placeholder,
+.ctc .ctc-f textarea::placeholder {
+	color: var(--ctc-muted);
+	opacity: .7;
+}
+
+.ctc .ctc-f input::-webkit-calendar-picker-indicator {
+	opacity: .7;
+	cursor: pointer;
+}
+
+.ctc .ctc-btn:not(.is-ghost),
+.ctc .ctc-btn:not(.is-ghost):hover,
+.ctc .ctc-btn:not(.is-ghost):focus {
+	background-color: var(--ctc-accent) !important;
+	background-image: linear-gradient(140deg, var(--ctc-accent), color-mix(in srgb, var(--ctc-accent) 72%, #000)) !important;
+	color: var(--ctc-on-accent) !important;
+	border: 0 !important;
+}
+
+.ctc .ctc-btn:focus-visible {
+	outline: 2px solid var(--ctc-accent) !important;
+	outline-offset: 3px;
+}
+
+.ctc-drop:focus-within {
+	border-color: var(--ctc-accent);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--ctc-accent) 16%, transparent);
 }

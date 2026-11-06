@@ -7,7 +7,8 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { LayoutTwoColumnIcon, PaintBoardIcon, Tick02Icon } from '@hugeicons/core-free-icons';
 import { useStore } from '../lib/store';
 import type { Card } from '../lib/types';
-import { cn } from '../lib/utils';
+import { boot, cn, ink } from '../lib/utils';
+import { ThemeSwatches } from '../ui/ThemeSwatches';
 import { Row, Section, SwitchRow } from '../ui/Field';
 import { Segmented } from '../ui/Segmented';
 import { BankCard } from '../components/BankCard';
@@ -41,7 +42,9 @@ function LayoutOption( { on, title, desc, onClick, standalone }: { on: boolean; 
 }
 
 export function Appearance() {
-	const { s, set } = useStore();
+	const { s, set, patch } = useStore();
+	const theme = s.accent_source === 'theme' ? boot().themeColors.find( ( c ) => c.slug === s.accent_theme ) : undefined;
+	const accent = theme?.color ?? s.accent;
 	const preview = s.cards.find( ( c ) => c.active ) ?? SAMPLE;
 	return (
 		<>
@@ -65,12 +68,31 @@ export function Appearance() {
 							] }
 						/>
 					</Row>
-					<Row label="رنگ اصلی" help="دکمه‌ها، مراحل و نشانگرها.">
-						<div className="flex flex-wrap items-center gap-2">
-							{ ACCENTS.map( ( c ) => (
-								<motion.button key={ c } type="button" whileTap={ { scale: 0.9 } } onClick={ () => set( 'accent', c ) } aria-label={ c } className={ cn( 'size-8 rounded-full ring-offset-2 ring-offset-card', s.accent === c && 'ring-2 ring-foreground' ) } style={ { background: c } } />
-							) ) }
-							<input type="color" value={ s.accent } onChange={ ( e ) => set( 'accent', e.target.value ) } className="size-8 cursor-pointer rounded-full border border-border bg-card p-0.5" aria-label="رنگ دلخواه" />
+					<Row label="رنگ اصلی" help={ s.accent_source === 'theme' ? `از رنگ‌های قالب «${ boot().themeName }»؛ اگر رنگ را در قالب عوض کنید، صفحه پرداخت هم عوض می‌شود.` : 'دکمه‌ها، مراحل و نشانگرها. رنگ متن روی دکمه خودکار (سفید یا تیره) انتخاب می‌شود.' }>
+						<div className="flex flex-col items-start gap-3 md:items-end">
+							<Segmented
+								size="sm"
+								value={ s.accent_source }
+								onChange={ ( v ) => set( 'accent_source', v ) }
+								options={ [
+									{ value: 'custom', label: 'رنگ دلخواه' },
+									{ value: 'theme', label: 'رنگ قالب' },
+								] }
+							/>
+							{ s.accent_source === 'theme' ? (
+								<ThemeSwatches
+									selected={ s.accent_theme }
+									onPick={ ( slug, hex ) => patch( { accent_theme: slug, accent: hex } ) }
+									empty="رنگی از قالب فعلی پیدا نشد (theme.json یا تنظیمات رنگ سفارشی‌ساز). «رنگ دلخواه» را انتخاب کنید."
+								/>
+							) : (
+								<div className="flex flex-wrap items-center gap-2">
+									{ ACCENTS.map( ( c ) => (
+										<motion.button key={ c } type="button" whileTap={ { scale: 0.9 } } onClick={ () => set( 'accent', c ) } aria-label={ c } className={ cn( 'size-8 rounded-full ring-offset-2 ring-offset-card', s.accent === c && 'ring-2 ring-foreground' ) } style={ { background: c } } />
+									) ) }
+									<input type="color" value={ s.accent } onChange={ ( e ) => set( 'accent', e.target.value ) } className="size-8 cursor-pointer rounded-full border border-border bg-card p-0.5" aria-label="رنگ دلخواه" />
+								</div>
+							) }
 						</div>
 					</Row>
 					<Row label="فونت" help="وزیرمتن همراه افزونه است؛ «فونت قالب» از فونت سایت استفاده می‌کند.">
@@ -88,7 +110,7 @@ export function Appearance() {
 				</Section>
 
 				<Section title="پیش‌نمایش">
-					<div className={ cn( 'ctc rounded-2xl p-5', s.scheme === 'dark' ? 'bg-[#0f1320]' : 'bg-[#f2f3f8]' ) } data-scheme={ s.scheme } style={ { '--ctc-accent': s.accent } as React.CSSProperties }>
+					<div className={ cn( 'ctc rounded-2xl p-5', s.scheme === 'dark' ? 'bg-[#0f1320]' : 'bg-[#f2f3f8]' ) } data-scheme={ s.scheme } style={ { '--ctc-accent': accent, '--ctc-on-accent': ink( accent ) } as React.CSSProperties }>
 						<BankCard card={ preview } tilt={ s.tilt } logo={ s.logo } className="mx-auto w-full max-w-[360px]" />
 						<div className="mt-4 flex flex-col gap-2">
 							<div className="ctc-fact is-amount">

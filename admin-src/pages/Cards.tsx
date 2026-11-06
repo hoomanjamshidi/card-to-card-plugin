@@ -13,6 +13,7 @@ import { boot, cn, fa } from '../lib/utils';
 import { Section, Row, SwitchRow, TextInput } from '../ui/Field';
 import { Segmented } from '../ui/Segmented';
 import { SoftSelect } from '../ui/SoftSelect';
+import { ThemeSwatches } from '../ui/ThemeSwatches';
 import { Sortable } from '../ui/Sortable';
 import { DeleteButton } from '../ui/DeleteButton';
 import { BankCard } from '../components/BankCard';
@@ -95,7 +96,7 @@ export function Cards() {
 					</button>
 				) }
 				{ s.cards.filter( ( c ) => c.active ).length > 1 ? (
-					<Row label="نمایش چند کارت" help="«همه»: مشتری بین کارت‌ها انتخاب می‌کند. «تصادفی» و «نوبتی»: به هر سفارش فقط یک کارت داده می‌شود (پخش واریزها بین حساب‌ها).">
+					<Row label="نمایش چند کارت" help="«همه»: مشتری بین کارت‌ها انتخاب می‌کند. «تصادفی» و «نوبتی»: به هر سفارش فقط یک کارت داده می‌شود (پخش واریزها بین حساب‌ها). «به ترتیب»: همیشه اولین کارت مجاز؛ با افزونه «سقف دریافت» کارت‌ها یکی‌یکی پر می‌شوند.">
 						<Segmented
 							value={ s.card_mode }
 							onChange={ ( v ) => set( 'card_mode', v ) }
@@ -103,6 +104,7 @@ export function Cards() {
 								{ value: 'all', label: 'همه کارت‌ها' },
 								{ value: 'random', label: 'تصادفی' },
 								{ value: 'rotate', label: 'نوبتی' },
+								{ value: 'first', label: 'به ترتیب' },
 							] }
 						/>
 					</Row>
@@ -160,13 +162,17 @@ export function Cards() {
 									/>
 								</Row>
 								{ card.skin === 'custom' ? (
-									<div className="flex items-center gap-4 px-3 pb-2">
+									<div className="flex flex-col gap-3 px-3 pb-2">
 										{ ( [ 'color1', 'color2' ] as const ).map( ( k, i ) => (
-											<label key={ k } className="flex items-center gap-2 text-[13px]">
-												<input type="color" value={ card[ k ] } onChange={ ( e ) => update( { [ k ]: e.target.value } ) } className="size-10 cursor-pointer rounded-xl border border-border bg-card p-1" />
-												{ i === 0 ? 'رنگ شروع' : 'رنگ پایان' }
-											</label>
+											<div key={ k } className="flex flex-wrap items-center gap-3">
+												<label className="flex items-center gap-2 text-[13px]">
+													<input type="color" value={ card[ k ] } onChange={ ( e ) => update( { [ k ]: e.target.value } ) } className="size-10 cursor-pointer rounded-xl border border-border bg-card p-1" />
+													<span className="w-16">{ i === 0 ? 'رنگ شروع' : 'رنگ پایان' }</span>
+												</label>
+												<ThemeSwatches selected={ boot().themeColors.find( ( c ) => c.color === card[ k ].toLowerCase() )?.slug } onPick={ ( _slug, hex ) => update( { [ k ]: hex } ) } />
+											</div>
 										) ) }
+										{ boot().themeColors.length ? <p className="text-[12px] text-muted-foreground">دایره‌ها رنگ‌های قالب «{ boot().themeName }» هستند. رنگ نوشته روی کارت خودکار تنظیم می‌شود.</p> : null }
 									</div>
 								) : null }
 							</Section>
