@@ -33,7 +33,12 @@ class Gateway extends \WC_Payment_Gateway {
 		$this->init_form_fields();
 		$this->init_settings();
 
-		$this->title             = (string) Settings::get( 'title' );
+		/**
+		 * Gateway title at checkout (the fee module adds «۲٪ تخفیف»).
+		 *
+		 * @param string $title Title from the panel.
+		 */
+		$this->title             = (string) apply_filters( 'ctc_gateway_title', (string) Settings::get( 'title' ) );
 		$this->description       = (string) Settings::get( 'description' );
 		$this->order_button_text = (string) Settings::get( 'button' );
 		$this->enabled           = (string) $this->get_option( 'enabled', 'no' );
@@ -77,11 +82,24 @@ class Gateway extends \WC_Payment_Gateway {
 		if ( ! parent::is_available() || ! Settings::cards() ) {
 			return false;
 		}
-		$total = $this->get_order_total();
+		$total = (float) $this->get_order_total();
 		$min   = (int) Settings::get( 'min_total', 0 );
 		$max   = (int) Settings::get( 'max_total', 0 );
 		if ( $total > 0 && ( ( $min > 0 && $total < $min ) || ( $max > 0 && $total > $max ) ) ) {
 			return false;
+		}
+		// Front end only: the cart / pay-for-order page decide; admin screens and REST lists always see it.
+		if ( ! is_admin() || wp_doing_ajax() ) {
+			if ( ! Orders::eligible_cards( null, $total ) ) {
+				return false;
+			}
+			/**
+			 * Whether card to card is offered for the current checkout (rules module).
+			 *
+			 * @param bool    $available Available.
+			 * @param Gateway $gateway   Gateway.
+			 */
+			return (bool) apply_filters( 'ctc_is_available', true, $this );
 		}
 		return true;
 	}
@@ -97,6 +115,12 @@ class Gateway extends \WC_Payment_Gateway {
 		if ( ! $order instanceof \WC_Order ) {
 			return array( 'result' => 'failure' );
 		}
+		/**
+		 * Before the cards are given (the fee module makes sure its line is on the order).
+		 *
+		 * @param \WC_Order $order Order.
+		 */
+		do_action( 'ctc_process_payment', $order );
 		Orders::assign_cards( $order );
 		$status = Settings::get( 'pro' ) ? Orders::AWAITING : 'on-hold';
 		$order->update_status( $status, __( 'در انتظار واریز کارت به کارت.', 'card-to-card' ) );

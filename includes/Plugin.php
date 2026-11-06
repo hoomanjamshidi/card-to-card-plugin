@@ -34,6 +34,8 @@ final class Plugin {
 		Frontend::init();
 		Sms\Events::init();
 		Rest\Controller::init();
+		add_action( 'init', array( Modules\Registry::class, 'boot' ), 1 );
+		add_action( 'ctc_settings_saved', array( Modules\Registry::class, 'boot' ) ); // A module switched on now works in this request.
 		if ( is_admin() ) {
 			Admin\App::init();
 			Admin\Order_Box::init();

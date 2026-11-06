@@ -84,12 +84,12 @@ final class Frontend {
 			}
 			return;
 		}
-		$accent = (string) Settings::get( 'accent', '#4f46e5' );
+		$accent = Settings::accent()['hex'];
 		foreach ( $cards as $card ) {
 			$p = (array) $card['palette'];
 			if ( 'custom' === ( $card['skin'] ?? '' ) ) {
 				$p['colors'] = array( $card['color1'], $card['color2'], $card['color1'] );
-				$p['ink']    = '#ffffff';
+				$p['ink']    = \CardToCard\Support\Colors::ink( (string) $card['color1'], (string) $card['color2'] );
 			}
 			printf(
 				'<div style="margin:0 0 14px;padding:18px 20px;border-radius:16px;background:%1$s;background-image:linear-gradient(135deg,%1$s,%2$s);color:%3$s;direction:rtl;text-align:right"><div style="font-size:13px;opacity:.9;margin-bottom:10px">%4$s</div><div dir="ltr" style="font-size:21px;font-weight:bold;letter-spacing:2px;text-align:left;font-family:monospace">%5$s</div><div style="font-size:13px;margin-top:10px;opacity:.9">%6$s</div></div>',
@@ -103,10 +103,11 @@ final class Frontend {
 		}
 		if ( '' !== $url ) {
 			printf(
-				'<p style="margin:0 0 24px"><a href="%1$s" style="display:inline-block;padding:12px 22px;border-radius:12px;background:%2$s;color:#fff;text-decoration:none;font-weight:bold">%3$s</a></p>',
+				'<p style="margin:0 0 24px"><a href="%1$s" style="display:inline-block;padding:12px 22px;border-radius:12px;background:%2$s;color:%4$s;text-decoration:none;font-weight:bold">%3$s</a></p>',
 				esc_url( $url ),
 				esc_attr( $accent ),
-				esc_html__( 'ارسال رسید واریز', 'card-to-card' )
+				esc_html__( 'ارسال رسید واریز', 'card-to-card' ),
+				esc_attr( \CardToCard\Support\Colors::ink( $accent ) )
 			);
 		}
 	}

@@ -77,14 +77,47 @@ final class Util {
 	 * @return bool
 	 */
 	public static function rate_limit( string $action, int $limit, int $window, string $extra = '' ): bool {
-		$ip   = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
-		$key  = 'ctc_rl_' . md5( $action . '|' . wp_hash( $ip ) . '|' . $extra );
-		$hits = (int) get_transient( $key );
-		if ( $hits >= $limit ) {
+		if ( self::limited( $action, $limit, $extra ) ) {
 			return false;
 		}
-		set_transient( $key, $hits + 1, $window );
+		self::hit( $action, $window, $extra );
 		return true;
+	}
+
+	/**
+	 * Whether a rate-limit bucket (hashed IP + action + extra) is full. Read only: nothing is counted.
+	 *
+	 * @param string $action Action.
+	 * @param int    $limit  Hits allowed per window.
+	 * @param string $extra  Extra key part (order id …).
+	 * @return bool
+	 */
+	public static function limited( string $action, int $limit, string $extra = '' ): bool {
+		return (int) get_transient( self::bucket( $action, $extra ) ) >= $limit;
+	}
+
+	/**
+	 * Count one hit in a rate-limit bucket.
+	 *
+	 * @param string $action Action.
+	 * @param int    $window Seconds the count is kept.
+	 * @param string $extra  Extra key part (order id …).
+	 */
+	public static function hit( string $action, int $window, string $extra = '' ): void {
+		$key = self::bucket( $action, $extra );
+		set_transient( $key, (int) get_transient( $key ) + 1, $window );
+	}
+
+	/**
+	 * Transient name of a rate-limit bucket.
+	 *
+	 * @param string $action Action.
+	 * @param string $extra  Extra key part.
+	 * @return string
+	 */
+	private static function bucket( string $action, string $extra ): string {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+		return 'ctc_rl_' . md5( $action . '|' . wp_hash( $ip ) . '|' . $extra );
 	}
 
 	/**

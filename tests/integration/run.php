@@ -594,6 +594,278 @@ ctc_eq( $before - 1, wc_get_product( $pid )->get_stock_quantity(), 'stock reduce
 Settings::save( array( 'hold_stock' => true ) );
 
 // ---------------------------------------------------------------------
+// Colours: readable ink, theme accent, card look follows the panel.
+// ---------------------------------------------------------------------
+ctc_eq( '#111827', \CardToCard\Support\Colors::ink( '#ffee58' ), 'dark text on a light colour' );
+ctc_eq( '#ffffff', \CardToCard\Support\Colors::ink( '#4f46e5' ), 'white text on a dark colour' );
+ctc_eq( '#111827', \CardToCard\Support\Colors::ink( '#1e3a8a', '#fde68a' ), 'the lightest gradient stop decides' );
+ctc_eq( '#aabbcc', \CardToCard\Support\Colors::hex( '#ABC' ), 'short hex expanded' );
+ctc_eq( '#ff8000', \CardToCard\Support\Colors::hex( 'rgb(255, 128, 0)' ), 'rgb() read' );
+add_filter(
+	'ctc_theme_colors',
+	static fn( $colors ) => array_merge(
+		(array) $colors,
+		array(
+			array(
+				'slug'  => 'wp:test-accent',
+				'name'  => 'Test',
+				'color' => '#ffee58',
+				'css'   => 'var(--wp--preset--color--test-accent, #ffee58)',
+			),
+		)
+	)
+);
+Settings::save(
+	array(
+		'accent'        => '#123456',
+		'accent_source' => 'theme',
+		'accent_theme'  => 'wp:test-accent',
+	)
+);
+ctc_eq( '#ffee58', Settings::accent()['hex'], 'theme accent resolved' );
+ctc_ok( str_contains( Payment_Page::inline_css(), '--ctc-accent:var(--wp--preset--color--test-accent, #ffee58)' ), 'page follows the theme variable', Payment_Page::inline_css() );
+ctc_ok( str_contains( Payment_Page::inline_css(), '--ctc-on-accent:#111827' ), 'dark button text on a light theme accent' );
+Settings::save( array( 'accent_theme' => 'wp:gone' ) );
+ctc_eq( '#123456', Settings::accent()['hex'], 'colour missing from the theme → panel colour' );
+Settings::save( array( 'accent_source' => 'custom' ) );
+ctc_ok( str_contains( Payment_Page::inline_css(), '--ctc-accent:#123456;--ctc-on-accent:#ffffff' ), 'custom accent with white text' );
+
+$look_cards = (array) Settings::get( 'cards' );
+[ $lk ]     = ctc_new_order( $pid );
+$given      = (string) $lk->get_meta( '_ctc_cards' )[0]['id'];
+$changed    = $look_cards;
+foreach ( $changed as $i => $c ) {
+	if ( $c['id'] === $given ) {
+		$changed[ $i ]['skin']   = 'custom';
+		$changed[ $i ]['color1'] = '#ff0000';
+		$changed[ $i ]['color2'] = '#00aa00';
+	}
+}
+Settings::save( array( 'cards' => $changed ) );
+$view = Payment_Page::card_view( Orders::cards( wc_get_order( $lk->get_id() ) )[0] );
+ctc_eq( 'custom', $view['skin'], 'custom skin reaches an existing order' );
+ctc_ok( str_contains( $view['style'], '--c1:#ff0000' ), 'custom colours reach an existing order', $view['style'] );
+foreach ( $changed as $i => $c ) {
+	if ( $c['id'] === $given ) {
+		$changed[ $i ]['number'] = '6037991111111111';
+		$changed[ $i ]['color1'] = '#0000ff';
+	}
+}
+Settings::save( array( 'cards' => $changed ) );
+$kept = Orders::cards( wc_get_order( $lk->get_id() ) )[0];
+ctc_ok( '6037991111111111' !== $kept['number'], 'number stays as given to the customer' );
+ctc_ok( '#0000ff' !== ( $kept['color1'] ?? '' ), 'a replaced card number does not borrow the new look' );
+Settings::save( array( 'cards' => $look_cards ) );
+$lk->delete( true );
+
+// ---------------------------------------------------------------------
+// Coming back later: payment link, form token, rate limits, upload size, My Account, SMS link.
+// ---------------------------------------------------------------------
+/**
+ * Open the payment page for a key as a visitor (GET) and return the order it resolved to.
+ *
+ * @param string $key Link key.
+ * @return WC_Order|null
+ */
+function ctc_visit( string $key ): ?WC_Order {
+	$prop = new ReflectionProperty( Payment_Page::class, 'order' );
+	$prop->setAccessible( true );
+	$prop->setValue( null, null );
+	set_query_var( Payment_Page::QUERY_VAR, $key );
+	@Payment_Page::template_redirect(); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- header() in CLI.
+	set_query_var( Payment_Page::QUERY_VAR, '' );
+	$GLOBALS['wp_query']->is_404 = false;
+	return Payment_Page::order();
+}
+
+/**
+ * Reset the payment page's form state between simulated posts.
+ */
+function ctc_form_reset(): void {
+	$prop = new ReflectionProperty( Payment_Page::class, 'form' );
+	$prop->setAccessible( true );
+	$prop->setValue(
+		null,
+		array(
+			'errors' => array(),
+			'old'    => array(),
+		)
+	);
+}
+
+/**
+ * Forget a rate-limit bucket of the current test address.
+ *
+ * @param string $action Action.
+ * @param string $extra  Extra key part.
+ */
+function ctc_rl_clear( string $action, string $extra ): void {
+	delete_transient( 'ctc_rl_' . md5( $action . '|' . wp_hash( (string) $_SERVER['REMOTE_ADDR'] ) . '|' . $extra ) );
+}
+
+$_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+[ $cb ]                 = ctc_new_order( $pid );
+[ $cb2 ]                = ctc_new_order( $pid );
+$cb_key                 = Orders::key( $cb );
+$cb_bad                 = $cb->get_id() . '-0000000000000000';
+
+// A valid link opens any number of times, also when many customers share one address.
+$opened = 0;
+for ( $i = 0; $i < 80; $i++ ) {
+	$opened += ctc_visit( 0 === $i % 2 ? $cb_key : Orders::key( $cb2 ) ) ? 1 : 0;
+}
+ctc_eq( 80, $opened, 'valid links never hit the rate limit (shared IP / CDN)' );
+for ( $i = 0; $i < 20; $i++ ) {
+	ctc_visit( $cb_bad );
+}
+ctc_eq( null, ctc_visit( $cb_key ), 'after 20 wrong keys for an order, that order is locked for the guessing address' );
+ctc_ok( null !== ctc_visit( Orders::key( $cb2 ) ), 'other orders from the same address still open' );
+$_SERVER['REMOTE_ADDR'] = '203.0.113.8';
+ctc_ok( null !== ctc_visit( $cb_key ), 'the customer on another address is not affected' );
+$_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+ctc_rl_clear( 'key', (string) $cb->get_id() );
+ctc_ok( null !== ctc_visit( $cb_key ), 'lock lifts with its window' );
+
+// Form token: bound to the order, not to the visitor or the clock.
+$cb_args = Payment_Page::args( $cb );
+ctc_eq( Orders::form_token( $cb ), $cb_args['form']['nonce'], 'form carries the order token' );
+ctc_ok( Orders::form_token( $cb ) !== Orders::form_token( $cb2 ), 'token differs per order' );
+wp_set_current_user( 0 );
+ctc_eq( Orders::form_token( $cb ), Payment_Page::args( $cb )['form']['nonce'], 'same token logged out' );
+wp_set_current_user( 1 );
+$post = static function ( array $fields ) use ( $cb ): array {
+	ctc_form_reset();
+	$_POST = $fields;
+	Payment_Page::handle_post( wc_get_order( $cb->get_id() ) );
+	$_POST = array();
+	return Payment_Page::form_state()['errors'];
+};
+$errs = $post( array( 'ctc_nonce' => Orders::form_token( $cb ) ) );
+ctc_ok( ! isset( $errs['form'] ) && isset( $errs['file'] ), 'order token accepted (reaches the file check)', $errs );
+$errs = $post( array( 'ctc_nonce' => wp_create_nonce( 'ctc_receipt_' . $cb->get_id() ) ) );
+ctc_ok( ! isset( $errs['form'] ), 'WordPress nonce of an older open page still accepted', $errs );
+$errs = $post( array( 'ctc_nonce' => Orders::form_token( $cb2 ) ) );
+ctc_ok( isset( $errs['form'] ), 'token of another order refused' );
+$errs = $post( array( 'ctc_nonce' => '' ) );
+ctc_ok( isset( $errs['form'] ), 'empty token refused' );
+ctc_rl_clear( 'receipt', (string) $cb->get_id() );
+
+// Mistakes in the form never lock the customer out; real upload attempts are limited.
+Settings::save( array( 'ref' => 'required' ) );
+for ( $i = 0; $i < 15; $i++ ) {
+	$errs = $post( array( 'ctc_nonce' => Orders::form_token( $cb ) ) );
+}
+ctc_ok( isset( $errs['ref'] ) && ! isset( $errs['form'] ), '15 posts with a missing field: still only the field error', $errs );
+Settings::save( array( 'ref' => 'optional' ) );
+for ( $i = 0; $i < 10; $i++ ) {
+	$errs = $post( array( 'ctc_nonce' => Orders::form_token( $cb ) ) );
+}
+ctc_ok( isset( $errs['file'] ) && ! isset( $errs['form'] ), '10 upload attempts allowed', $errs );
+$errs = $post( array( 'ctc_nonce' => Orders::form_token( $cb ) ) );
+ctc_ok( isset( $errs['form'] ), '11th upload attempt in an hour refused', $errs );
+ctc_rl_clear( 'receipt', (string) $cb->get_id() );
+
+// Upload size: the smaller of the panel and the server limit, and a clear message.
+$small = static fn(): int => 2 * MB_IN_BYTES;
+add_filter( 'upload_size_limit', $small );
+ctc_eq( 2 * MB_IN_BYTES, Payment_Page::max_bytes(), 'server limit wins when smaller than the panel' );
+ctc_eq( 2, Payment_Page::args( $cb )['form']['max_mb'], 'form shows the real limit' );
+ctc_eq( 2 * MB_IN_BYTES, Payment_Page::args( $cb )['form']['max_size'], 'browser check uses the real limit' );
+remove_filter( 'upload_size_limit', $small );
+$large = static fn(): int => 64 * MB_IN_BYTES;
+add_filter( 'upload_size_limit', $large );
+ctc_eq( 5 * MB_IN_BYTES, Payment_Page::max_bytes(), 'panel limit when the server allows more' );
+remove_filter( 'upload_size_limit', $large );
+$too_big = Receipts::store(
+	array(
+		'name'     => 'r.jpg',
+		'type'     => 'image/jpeg',
+		'tmp_name' => '',
+		'error'    => UPLOAD_ERR_INI_SIZE,
+		'size'     => 0,
+	)
+);
+ctc_ok( is_wp_error( $too_big ) && str_contains( $too_big->get_error_message(), 'مگابایت' ), 'server-refused size says «too big», not «try again»' );
+ctc_form_reset();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_SERVER['CONTENT_LENGTH'] = (string) ( 50 * MB_IN_BYTES );
+ctc_visit( $cb_key );
+unset( $_SERVER['REQUEST_METHOD'], $_SERVER['CONTENT_LENGTH'] );
+ctc_ok( str_contains( (string) ( Payment_Page::form_state()['errors']['file'] ?? '' ), 'مگابایت' ), 'a post over post_max_size shows the size error' );
+ctc_form_reset();
+
+// Quick jump to the form at the top of the page.
+ob_start();
+Payment_Page::part( 'payment-page.php', Payment_Page::args( $cb ) );
+$html = (string) ob_get_clean();
+ctc_ok( str_contains( $html, 'href="#ctc-form" data-ctc-jump' ) && str_contains( $html, 'id="ctc-form"' ), 'hero has the «ارسال رسید» jump to the form' );
+
+// My Account and SMS point to the same no-login link; it opens logged out.
+$acts = apply_filters( 'woocommerce_my_account_my_orders_actions', array(), $cb );
+ctc_eq( Orders::url( $cb ), $acts['ctc-receipt']['url'] ?? '', 'My Account «ارسال رسید» = payment link' );
+ctc_eq( Orders::url( $cb ), \CardToCard\Sms\Events::tokens( $cb )['link'], 'SMS {link} = payment link' );
+ctc_ok( str_ends_with( Orders::url( $cb ), '/' . Orders::key( $cb ) . '/' ), 'SMS {key} completes the pattern URL', Orders::url( $cb ) );
+foreach ( array( 'placed', 'rejected', 'remind' ) as $ev ) {
+	ctc_ok( str_contains( \CardToCard\Sms\Events::all()[ $ev ]['text'], '{link}' ), "default «{$ev}» text carries the link" );
+}
+wp_set_current_user( 0 );
+ctc_ok( null !== ctc_visit( $cb_key ), 'payment link opens without login' );
+wp_set_current_user( 1 );
+Receipts::attach( wc_get_order( $cb->get_id() ), $fake, '', '' );
+$acts = apply_filters( 'woocommerce_my_account_my_orders_actions', array(), wc_get_order( $cb->get_id() ) );
+ctc_ok( ! isset( $acts['ctc-receipt'] ), 'no «ارسال رسید» while the receipt is reviewed' );
+Orders::reject( wc_get_order( $cb->get_id() ), 'تار است' );
+$acts = apply_filters( 'woocommerce_my_account_my_orders_actions', array(), wc_get_order( $cb->get_id() ) );
+ctc_ok( isset( $acts['ctc-receipt'] ), '«ارسال رسید» is back after a rejection' );
+ctc_eq( Orders::form_token( $cb ), Payment_Page::args( wc_get_order( $cb->get_id() ) )['form']['nonce'], 'same link and token after a rejection' );
+
+// Cancelled by hand vs. by the deadline: the right text.
+wc_get_order( $cb2->get_id() )->update_status( 'cancelled' );
+$cancel_text = Payment_Page::args( wc_get_order( $cb2->get_id() ) )['text'];
+ctc_ok( '' !== $cancel_text && ! str_contains( $cancel_text, 'مهلت' ), 'cancelled by hand: no «deadline passed» text', $cancel_text );
+$cb3 = wc_get_order( ctc_new_order( $pid )[0]->get_id() );
+$cb3->update_meta_data( '_ctc_deadline', (string) ( time() - 10 ) );
+$cb3->save_meta_data();
+Orders::expire( $cb3->get_id() );
+ctc_eq( Util::tokens( (string) Settings::get( 'text_expired' ), Orders::text_tokens( $cb3 ) ), Payment_Page::args( wc_get_order( $cb3->get_id() ) )['text'], 'expired: the deadline text' );
+
+// An order put into «در انتظار رسید» by hand gets its card too.
+$manual = wc_create_order();
+$manual->add_product( wc_get_product( $pid ), 1 );
+$manual->set_payment_method( Gateway::ID );
+$manual->calculate_totals();
+$manual->save();
+$manual->update_status( Orders::AWAITING );
+ctc_ok( is_array( wc_get_order( $manual->get_id() )->get_meta( '_ctc_cards' ) ) && wc_get_order( $manual->get_id() )->get_meta( '_ctc_cards' ), 'admin-made order gets its card on «در انتظار رسید»' );
+
+// Amount in rial beside a toman price: many banking apps ask for rial.
+$currency = get_option( 'woocommerce_currency' );
+update_option( 'woocommerce_currency', 'IRT' );
+$amt = Payment_Page::amount( $cb );
+ctc_eq( (string) ( (int) round( (float) $cb->get_total() ) * 10 ), $amt['rial']['raw'] ?? '', 'toman shop: amount in rial = ×10' );
+ob_start();
+Payment_Page::part( 'payment-page.php', Payment_Page::args( wc_get_order( $cb->get_id() ) ) );
+$html = (string) ob_get_clean();
+ctc_ok( str_contains( $html, 'class="ctc-rial" data-copy="' . ( $amt['rial']['raw'] ?? 'x' ) . '"' ), 'payment page offers the rial amount to copy' );
+update_option( 'woocommerce_currency', 'IRHT' );
+ctc_eq( (string) ( (int) round( (float) $cb->get_total() * 10000 ) ), Payment_Page::amount( $cb )['rial']['raw'] ?? '', 'thousand-toman shop: ×10000' );
+update_option( 'woocommerce_currency', 'IRR' );
+ctc_eq( array(), Payment_Page::amount( $cb )['rial'], 'rial shop: no second figure' );
+update_option( 'woocommerce_currency', $currency );
+
+// Browser texts for «۲ ساعت و ۱۰ دقیقه مانده», image shrinking and the single submit.
+Payment_Page::assets( true );
+$data = (string) wp_scripts()->get_data( 'ctc-payment', 'data' );
+foreach ( array( 'hm', 'h', 'm', 'wait', 'prep', 'change', 'kb', 'mb' ) as $k ) {
+	ctc_ok( str_contains( $data, '"' . $k . '":' ), "ctcPay.{$k} is sent to the browser" );
+}
+
+foreach ( array( $cb, $cb2, $cb3, $manual ) as $o ) {
+	$o->delete( true );
+}
+unset( $_SERVER['REMOTE_ADDR'] );
+
+// ---------------------------------------------------------------------
 // Clean up.
 // ---------------------------------------------------------------------
 update_option( Settings::OPTION, $saved_settings );

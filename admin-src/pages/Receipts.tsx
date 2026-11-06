@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { CheckmarkBadge01Icon, Cancel01Icon, LinkSquare02Icon, File01Icon, Invoice03Icon, ZoomInAreaIcon } from '@hugeicons/core-free-icons';
+import { CheckmarkBadge01Icon, Cancel01Icon, LinkSquare02Icon, File01Icon, Invoice03Icon, ZoomInAreaIcon, Alert02Icon } from '@hugeicons/core-free-icons';
+import { useStore } from '../lib/store';
 import { api } from '../lib/api';
 import type { OrderRow } from '../lib/types';
 import { cn, fa } from '../lib/utils';
@@ -39,11 +40,21 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 	const [ rejecting, setRejecting ] = useState( false );
 	const [ reason, setReason ] = useState( '' );
 	const [ stamped, setStamped ] = useState( false );
+	const [ sure, setSure ] = useState( false );
+	const { s } = useStore();
 	const last = row.receipts[ row.receipts.length - 1 ];
+	const flags = last?.flags ?? [];
+	const danger = flags.some( ( f ) => f.level === 'danger' );
+	const mustConfirm = danger && last?.state === 'pending' && s.modules?.fraud?.confirm !== false;
 	const review = row.status === 'ctc-review';
 	const awaiting = row.status === 'ctc-receipt' || row.status === 'on-hold';
 
 	const decide = async ( action: 'approve' | 'reject' ) => {
+		// A receipt flagged as a duplicate needs a second click.
+		if ( action === 'approve' && mustConfirm && ! sure ) {
+			setSure( true );
+			return;
+		}
 		setBusy( true );
 		try {
 			const next = await api<OrderRow>( `orders/${ row.id }/${ action }`, { method: 'POST', body: { reason } } );
@@ -90,6 +101,12 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 						<span className="text-[12px]">هنوز رسیدی نرسیده</span>
 					</div>
 				) }
+				{ flags.length ? (
+					<span className={ cn( 'absolute top-2 start-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold text-white shadow', danger ? 'bg-[#e11d48]' : 'bg-[#d97706]' ) }>
+						<HugeiconsIcon icon={ Alert02Icon } size={ 14 } />
+						{ danger ? 'مشکوک' : 'هشدار' }
+					</span>
+				) : null }
 				<AnimatePresence>{ stamped ? <Stamp /> : null }</AnimatePresence>
 			</div>
 
@@ -139,6 +156,20 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 						<dd className="font-bold">{ last ? last.time : row.deadline || row.date }</dd>
 					</div>
 				</dl>
+				{ flags.map( ( f, i ) => (
+					<div key={ i } className={ cn( 'flex items-start gap-2 rounded-2xl px-3 py-2.5 text-[12.5px] leading-6', f.level === 'danger' ? 'bg-[#e11d48]/8 text-[#9b1c1c] dark:text-rose-300' : 'bg-[#f59e0b]/10 text-[#7a5200] dark:text-amber-300' ) }>
+						<HugeiconsIcon icon={ Alert02Icon } size={ 17 } className="mt-1 shrink-0" />
+						<span className="min-w-0 flex-1">
+							<b>{ f.level === 'danger' ? 'رسید مشکوک: ' : 'هشدار: ' }</b>
+							{ f.text }
+							{ f.edit ? (
+								<a href={ f.edit } target="_blank" rel="noreferrer" className="ms-1 inline-flex items-center gap-0.5 font-bold underline">
+									دیدن سفارش { fa( f.number ) } <HugeiconsIcon icon={ LinkSquare02Icon } size={ 13 } />
+								</a>
+							) : null }
+						</span>
+					</div>
+				) ) }
 				{ row.cards.length ? <p className="text-[12px] text-muted-foreground">واریز به: { row.cards.map( ( c ) => `${ c.bank } ${ fa( c.number ) }` ).join( '، ' ) }</p> : null }
 				{ row.receipts.length > 1 ? (
 					<p className="text-[12px] text-muted-foreground">
@@ -148,10 +179,15 @@ function OrderCard( { row, onChange, onZoom }: { row: OrderRow; onChange: ( row:
 
 				{ review || awaiting ? (
 					<div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-						<motion.button type="button" disabled={ busy || stamped } onClick={ () => decide( 'approve' ) } whileTap={ { scale: 0.96 } } className="inline-flex items-center gap-2 rounded-full bg-[#16a34a] px-5 py-2.5 text-[13.5px] font-bold text-white shadow-[0_10px_22px_-12px_#16a34a] disabled:opacity-60">
+						<motion.button type="button" disabled={ busy || stamped } onClick={ () => decide( 'approve' ) } whileTap={ { scale: 0.96 } } className={ cn( 'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[13.5px] font-bold text-white disabled:opacity-60', sure ? 'bg-[#e11d48] shadow-[0_10px_22px_-12px_#e11d48]' : 'bg-[#16a34a] shadow-[0_10px_22px_-12px_#16a34a]' ) }>
 							<HugeiconsIcon icon={ CheckmarkBadge01Icon } size={ 18 } />
-							تأیید واریز
+							{ sure ? 'با وجود هشدار، تأیید کن' : 'تأیید واریز' }
 						</motion.button>
+						{ sure ? (
+							<button type="button" onClick={ () => setSure( false ) } className="text-[12.5px] text-muted-foreground hover:text-foreground">
+								انصراف
+							</button>
+						) : null }
 						{ review ? (
 							<button type="button" disabled={ busy } onClick={ () => setRejecting( ( r ) => ! r ) } className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-[13.5px] font-bold text-[#e11d48] hover:bg-[#e11d48]/5">
 								<HugeiconsIcon icon={ Cancel01Icon } size={ 16 } />

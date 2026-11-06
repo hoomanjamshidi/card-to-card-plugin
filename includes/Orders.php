@@ -171,12 +171,17 @@ final class Orders {
 	 * @param \WC_Order $order Order.
 	 */
 	public static function assign_cards( \WC_Order $order ): void {
-		$cards = Settings::cards();
+		$cards = self::eligible_cards( $order );
+		if ( ! $cards ) {
+			$cards = Settings::cards(); // Rules left nothing (e.g. an admin-made order): never leave the page empty.
+		}
 		if ( ! $cards ) {
 			return;
 		}
 		$mode = (string) Settings::get( 'card_mode', 'all' );
-		if ( 'random' === $mode ) {
+		if ( 'first' === $mode ) {
+			$cards = array( $cards[0] );
+		} elseif ( 'random' === $mode ) {
 			$cards = array( $cards[ array_rand( $cards ) ] );
 		} elseif ( 'rotate' === $mode ) {
 			$next = (int) get_option( 'ctc_rotate', 0 );
@@ -190,6 +195,32 @@ final class Orders {
 		}
 		$order->update_meta_data( '_ctc_cards', $out );
 		$order->save_meta_data();
+		/**
+		 * Destination card(s) were given to an order.
+		 *
+		 * @param \WC_Order                          $order Order.
+		 * @param array<int, array<string, mixed>> $cards Cards (stored subset).
+		 */
+		do_action( 'ctc_cards_assigned', $order, $out );
+	}
+
+	/**
+	 * Active cards that may be given for this order / amount (modules filter them: limits, rules).
+	 *
+	 * @param \WC_Order|null $order  Order (null = the current cart).
+	 * @param float|null     $amount Amount (defaults to the order total).
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function eligible_cards( ?\WC_Order $order = null, ?float $amount = null ): array {
+		$amount = $amount ?? ( $order ? (float) $order->get_total() : 0.0 );
+		/**
+		 * Cards that may be shown for an order or the current cart.
+		 *
+		 * @param array<int, array<string, mixed>> $cards  Active cards.
+		 * @param \WC_Order|null                    $order  Order, or null for the cart.
+		 * @param float                            $amount Amount.
+		 */
+		return array_values( (array) apply_filters( 'ctc_eligible_cards', Settings::cards(), $order, $amount ) );
 	}
 
 	/**
@@ -202,6 +233,18 @@ final class Orders {
 		$stored = $order->get_meta( '_ctc_cards' );
 		if ( ! is_array( $stored ) || ! $stored ) {
 			return Settings::cards();
+		}
+		// Numbers stay as given to the customer; the look (skin, colours, bank) follows the panel.
+		$live = array();
+		foreach ( (array) Settings::get( 'cards', array() ) as $card ) {
+			$live[ (string) ( $card['id'] ?? '' ) ] = $card;
+		}
+		$look = array( 'skin', 'color1', 'color2', 'bank' );
+		foreach ( $stored as $i => $card ) {
+			$now = $live[ (string) ( $card['id'] ?? '' ) ] ?? null;
+			if ( is_array( $now ) && (string) ( $now['number'] ?? '' ) === (string) ( $card['number'] ?? '' ) ) {
+				$stored[ $i ] = array_merge( $card, array_intersect_key( $now, array_flip( $look ) ) );
+			}
 		}
 		return array_map( array( Settings::class, 'resolve_card' ), $stored );
 	}
@@ -220,6 +263,18 @@ final class Orders {
 	public static function key( \WC_Order $order ): string {
 		$mac = hash_hmac( 'sha256', $order->get_id() . '|' . $order->get_order_key(), wp_salt( 'auth' ) );
 		return $order->get_id() . '-' . substr( $mac, 0, 16 );
+	}
+
+	/**
+	 * Token of the receipt form. Plays the nonce's role but is bound to the order, not to the
+	 * visitor's login session or the clock, so a page left open for hours or restored by a mobile
+	 * browser still submits. Posting the form needs the payment link anyway, which is the real secret.
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return string 20 hex characters.
+	 */
+	public static function form_token( \WC_Order $order ): string {
+		return substr( hash_hmac( 'sha256', 'receipt|' . $order->get_id() . '|' . $order->get_order_key(), wp_salt( 'nonce' ) ), 0, 20 );
 	}
 
 	/**
@@ -303,6 +358,10 @@ final class Orders {
 		}
 		$id    = $order->get_id();
 		$hours = (int) Settings::get( 'deadline', 24 );
+		if ( ! $order->get_meta( '_ctc_cards' ) ) {
+			// Moved here by hand (an order made in the admin): give it its card now, like a checkout does.
+			self::assign_cards( $order );
+		}
 		self::unschedule( $id );
 		if ( $hours > 0 ) {
 			$deadline = time() + $hours * HOUR_IN_SECONDS;

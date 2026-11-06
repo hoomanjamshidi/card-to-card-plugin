@@ -62,6 +62,10 @@ $ctc_solo  = ! $ctc_cards && ! $ctc_form;
 			<span><?php esc_html_e( 'شماره سفارش', 'card-to-card' ); ?></span>
 			<b dir="ltr"><?php echo esc_html( Persian::digits( $args['code'] ) ); ?></b>
 		</div>
+		<?php if ( $ctc_form ) : ?>
+			<?php // Back from the bank app or the SMS link: straight to the form, past the card and the steps. ?>
+			<a class="ctc-btn ctc-hero-cta" href="#ctc-form" data-ctc-jump><?php echo Util::icon( 'upload' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><span><?php esc_html_e( 'واریز کرده‌ام؛ ارسال رسید', 'card-to-card' ); ?></span></a>
+		<?php endif; ?>
 	</section>
 
 	<?php if ( '' !== $args['rejected'] ) : ?>

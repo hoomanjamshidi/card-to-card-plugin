@@ -5,7 +5,7 @@
 import { useRef } from 'react';
 import type { Card } from '../lib/types';
 import { bankOf, formatCard, formatSheba, sheba as toSheba } from '../lib/banks';
-import { cn } from '../lib/utils';
+import { cn, ink } from '../lib/utils';
 
 export function BankCard( { card, tilt = true, logo = true, className, compact }: { card: Card; tilt?: boolean; logo?: boolean; className?: string; compact?: boolean } ) {
 	const ref = useRef<HTMLDivElement>( null );
@@ -16,8 +16,8 @@ export function BankCard( { card, tilt = true, logo = true, className, compact }
 		'--c1': colors[ 0 ],
 		'--c2': colors[ 1 ],
 		'--c3': colors[ 2 ],
-		'--ink': custom ? '#ffffff' : bank.ink,
-		'--foil': custom ? '#ffffff' : bank.accent,
+		'--ink': custom ? ink( card.color1, card.color2 ) : bank.ink,
+		'--foil': custom ? ink( card.color1, card.color2 ) : bank.accent,
 	} as React.CSSProperties;
 	const move = ( e: React.PointerEvent ) => {
 		const el = ref.current;

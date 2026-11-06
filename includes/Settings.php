@@ -43,7 +43,7 @@ final class Settings {
 			'max_total'         => 0,
 			// Cards.
 			'cards'             => array(),
-			'card_mode'         => 'all', // all | random | rotate.
+			'card_mode'         => 'all', // all | random | rotate | first.
 			// Flow.
 			'pro'               => true,
 			'redirect'          => true,
@@ -87,6 +87,8 @@ final class Settings {
 			'layout'            => 'theme', // theme | standalone.
 			'scheme'            => 'light', // light | dark | auto.
 			'accent'            => '#4f46e5',
+			'accent_source'     => 'custom', // custom | theme.
+			'accent_theme'      => '', // Theme colour slug (Support\Colors::theme()) when the source is the theme.
 			'font'              => 'vazirmatn', // vazirmatn | theme.
 			'tilt'              => true,
 			'logo'              => true,
@@ -101,6 +103,8 @@ final class Settings {
 			'sms_events'        => array(),
 			// Advanced.
 			'cleanup'           => false,
+			// Optional feature modules (Modules\Registry): id => { on, …settings }.
+			'modules'           => Modules\Registry::defaults(),
 		);
 	}
 
@@ -112,7 +116,14 @@ final class Settings {
 	public static function all(): array {
 		if ( null === self::$cache ) {
 			$saved       = get_option( self::OPTION, array() );
-			self::$cache = array_merge( self::defaults(), is_array( $saved ) ? $saved : array() );
+			$defaults    = self::defaults();
+			self::$cache = array_merge( $defaults, is_array( $saved ) ? $saved : array() );
+			// A module added after the last save gets its defaults; saved modules keep new keys' defaults.
+			$mods = is_array( self::$cache['modules'] ) ? self::$cache['modules'] : array();
+			foreach ( $defaults['modules'] as $id => $conf ) {
+				$mods[ $id ] = array_merge( $conf, isset( $mods[ $id ] ) && is_array( $mods[ $id ] ) ? $mods[ $id ] : array() );
+			}
+			self::$cache['modules'] = $mods;
 		}
 		return self::$cache;
 	}
@@ -165,11 +176,12 @@ final class Settings {
 		$defaults  = self::defaults();
 		$out       = array();
 		$choices   = array(
-			'card_mode'     => array( 'all', 'random', 'rotate' ),
+			'card_mode'     => array( 'all', 'random', 'rotate', 'first' ),
 			'ref'           => array( 'hidden', 'optional', 'required' ),
 			'last4'         => array( 'hidden', 'optional', 'required' ),
 			'layout'        => array( 'theme', 'standalone' ),
 			'scheme'        => array( 'light', 'dark', 'auto' ),
+			'accent_source' => array( 'custom', 'theme' ),
 			'font'          => array( 'vazirmatn', 'theme' ),
 			'sms_driver'    => array( 'off', 'log', 'melipayamak' ),
 			'mp_mode'       => array( 'pattern', 'line' ),
@@ -196,6 +208,8 @@ final class Settings {
 				$out[ $key ] = self::sanitize_fields( is_array( $value ) ? $value : array() );
 			} elseif ( 'sms_events' === $key ) {
 				$out[ $key ] = self::sanitize_events( is_array( $value ) ? $value : array() );
+			} elseif ( 'modules' === $key ) {
+				$out[ $key ] = Modules\Registry::sanitize( is_array( $value ) ? $value : array() );
 			} elseif ( isset( $choices[ $key ] ) ) {
 				$value       = (string) $value;
 				$out[ $key ] = in_array( $value, $choices[ $key ], true ) ? $value : $default;
@@ -207,6 +221,8 @@ final class Settings {
 				$out[ $key ] = max( $range[0], min( $range[1], $num ) );
 			} elseif ( 'accent' === $key ) {
 				$out[ $key ] = sanitize_hex_color( (string) $value ) ?? $default;
+			} elseif ( 'accent_theme' === $key ) {
+				$out[ $key ] = substr( (string) preg_replace( '/[^a-z0-9_:\-]/', '', strtolower( (string) $value ) ), 0, 80 );
 			} elseif ( 'slug' === $key ) {
 				$slug        = sanitize_title( (string) $value );
 				$out[ $key ] = '' !== $slug ? $slug : $default;
@@ -330,6 +346,29 @@ final class Settings {
 			$cards[] = self::resolve_card( $card );
 		}
 		return $cards;
+	}
+
+	/**
+	 * Accent colour: { css value for the page, hex for e-mails and contrast }. A theme colour follows
+	 * the theme (its CSS variable); when the theme no longer has it, the panel's own colour is used.
+	 *
+	 * @return array{css:string, hex:string}
+	 */
+	public static function accent(): array {
+		$hex = (string) self::get( 'accent', '#4f46e5' );
+		if ( 'theme' === self::get( 'accent_source' ) ) {
+			$theme = Support\Colors::theme_color( (string) self::get( 'accent_theme', '' ) );
+			if ( $theme ) {
+				return array(
+					'css' => $theme['css'],
+					'hex' => $theme['color'],
+				);
+			}
+		}
+		return array(
+			'css' => $hex,
+			'hex' => $hex,
+		);
 	}
 
 	/**

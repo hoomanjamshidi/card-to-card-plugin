@@ -35,7 +35,7 @@ export type Settings = {
 	min_total: number;
 	max_total: number;
 	cards: Card[];
-	card_mode: 'all' | 'random' | 'rotate';
+	card_mode: 'all' | 'random' | 'rotate' | 'first';
 	pro: boolean;
 	redirect: boolean;
 	strict: boolean;
@@ -74,6 +74,8 @@ export type Settings = {
 	layout: 'theme' | 'standalone';
 	scheme: 'light' | 'dark' | 'auto';
 	accent: string;
+	accent_source: 'custom' | 'theme';
+	accent_theme: string;
 	font: 'vazirmatn' | 'theme';
 	tilt: boolean;
 	logo: boolean;
@@ -86,7 +88,19 @@ export type Settings = {
 	sms_log: boolean;
 	sms_events: Record<string, Partial<SmsEventConf>>;
 	cleanup: boolean;
+	modules: Modules;
 };
+
+/** Optional feature modules: id → settings (every module has `on`). */
+export type FeeConf = { on: boolean; type: 'discount' | 'fee'; mode: 'percent' | 'fixed'; percent: number; fixed: number; max: number; min: number; round: number; shipping: boolean; label: string; badge: boolean };
+export type LimitsConf = { on: boolean; limits: Record<string, { day: number; month: number }> };
+export type RulesConf = { on: boolean; cats_mode: 'off' | 'only' | 'except'; cats: number[]; shipping: string[]; roles: string[]; cards: Record<string, { roles: string[]; min: number; max: number }> };
+export type FraudConf = { on: boolean; file: boolean; image: boolean; ref: boolean; action: 'flag' | 'block'; confirm: boolean; sensitivity: 'low' | 'normal' | 'high' };
+export type Modules = { fee: FeeConf; limits: LimitsConf; rules: RulesConf; fraud: FraudConf } & Record<string, { on: boolean; [ key: string ]: unknown }>;
+
+export type Option = { value: string; label: string };
+export type ThemeColor = { slug: string; name: string; color: string; css: string };
+export type ModuleMeta = { id: string; label: string; desc: string; icon: string; data: Record<string, unknown> };
 
 export type Bank = {
 	name: string;
@@ -108,6 +122,9 @@ export type Boot = {
 	defaults: Settings;
 	banks: Record<string, Bank>;
 	events: Record<string, EventDef>;
+	modules: ModuleMeta[];
+	themeColors: ThemeColor[];
+	themeName: string;
 	tokens: Record<string, string>;
 	unit: string;
 	home: string;
@@ -131,7 +148,10 @@ export type Receipt = {
 	reason: string;
 	fields: Record<string, string>;
 	deleted: boolean;
+	flags: Flag[];
 };
+
+export type Flag = { level: 'danger' | 'warn'; text: string; order: number; number: string; edit: string };
 
 export type OrderRow = {
 	id: number;
