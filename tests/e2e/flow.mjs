@@ -117,6 +117,8 @@ await step( 'mobile payment page has no horizontal scroll and the card number fi
 	assert.ok( sw <= w, `scrollWidth ${ sw } > ${ w }` );
 	const fits = await mp.locator( '.ctc-plate-no' ).first().evaluate( ( n ) => n.scrollWidth <= n.clientWidth + 1 && n.getBoundingClientRect().right <= n.closest( '.ctc-plate' ).getBoundingClientRect().right );
 	assert.ok( fits, 'card number overflows the card' );
+	// The theme's fixed bottom bar would land mid-page in a full-page shot.
+	await mp.addStyleTag( { content: '.storefront-handheld-footer-bar{display:none!important}' } );
 	await mp.screenshot( { path: `${ OUT }/payment-mobile.png`, fullPage: true } );
 	await m.close();
 } );
@@ -161,6 +163,7 @@ await step( 'panel payment, texts, appearance, advanced', async () => {
 	await tab( 'texts', 'panel-texts' );
 	await tab( 'look', 'panel-appearance' );
 	await tab( 'advanced', 'panel-advanced' );
+	await tab( 'modules', 'panel-modules' );
 } );
 await step( 'panel SMS: Melipayamak pattern and line modes', async () => {
 	await tab( 'sms', 'panel-sms' );
