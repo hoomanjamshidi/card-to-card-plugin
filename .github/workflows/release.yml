@@ -1,0 +1,43 @@
+name: Release
+
+# Builds the installable zip and attaches it to a GitHub Release.
+# Runs when a version tag (v1.2.3) is pushed, or by hand from the Actions tab for an existing tag.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. v1.2.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build zip
+        run: |
+          bash bin/zip.sh
+          cp dist/card-to-card-*.zip dist/card-to-card.zip
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/card-to-card*.zip --clobber
+          else
+            gh release create "$TAG" dist/card-to-card*.zip --title "$TAG" --generate-notes --verify-tag
+          fi

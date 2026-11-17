@@ -6,6 +6,8 @@
 
 روی **هر قالبی** کار می‌کند: قالب‌های کلاسیک، قالب‌های بلوکی (FSE) و حالت صفحه مستقل.
 
+<a href="https://github.com/hoomanjamshidi/card-to-card-plugin/releases/latest/download/card-to-card.zip"><img src="https://img.shields.io/badge/%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF%20%D8%A7%D9%81%D8%B2%D9%88%D9%86%D9%87-card--to--card.zip-0a7cff?style=for-the-badge&logo=github&logoColor=white" alt="دانلود افزونه"></a>
+
 ![WordPress](https://img.shields.io/badge/WordPress-6.4%2B-21759b?logo=wordpress&logoColor=white)
 ![WooCommerce](https://img.shields.io/badge/WooCommerce-8%2B%20%7C%20HPOS%20%7C%20Blocks-7f54b3?logo=woocommerce&logoColor=white)
 ![PHP](https://img.shields.io/badge/PHP-8.0%2B-777bb4?logo=php&logoColor=white)
@@ -73,7 +75,7 @@
 
 ## 🚀 نصب
 
-1. آخرین نسخه را از بخش [Releases](https://github.com/hoomanjamshidi/card-to-card-plugin/releases) دانلود کنید (یا با `bash bin/zip.sh` بسازید).
+1. آخرین نسخه را با دکمه بالای صفحه یا از بخش [Releases](https://github.com/hoomanjamshidi/card-to-card-plugin/releases/latest) دانلود کنید (یا با `bash bin/zip.sh` بسازید).
 2. در وردپرس: **افزونه‌ها › افزودن › بارگذاری افزونه** و فایل زیپ را نصب و فعال کنید.
 3. به **ووکامرس › کارت به کارت** بروید:
    - در تب **کارت‌ها** کارت مقصد را اضافه کنید (بانک خودکار تشخیص داده می‌شود)؛
